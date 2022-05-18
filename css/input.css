@@ -1,0 +1,33 @@
+#input_overlay {
+	max-width: 200px;
+	min-width: 100px;
+	min-height: 40px;
+	padding: 2px;
+	text-align: right;
+	border: dashed #cccccc;
+	background-color: #f8f8f8;
+}
+
+.input_element {
+	height: 40px;
+	line-height: 34px;
+	width: 40px;
+	text-align: center;
+	border: solid 3px #aaaaaa;
+	padding: 0px;
+	margin: 2px;
+	background-color: #e7e7e7;
+	display: inline-block;
+	font-family: sans-serif;
+	font-weight: bold;
+	font-size: 20px;
+
+}
+
+.input_keydown {
+	background-color: #88ee88;
+}
+
+.input_keyup {
+	background-color: #f2f277;
+}
