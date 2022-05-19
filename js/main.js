@@ -395,6 +395,9 @@ class InputHandler {
     //What if we get events out of order..?  Could it happen???  We press a button so fast that keydown and keyup get 
     //  kicked off at the same time, and we process keyup FIRST?  Maybe when checking the completed, see if its time
     //  matches current time?
+    //I'm going to trust that we don't get events out of order.
+    //If you hold the button down for a while, it keeps sending KEYDOWN.  Even though no KeyUp happened!  SOOOOoo...
+    //  I'm going to change things so that I IGNORE continued key-downs!
     document.addEventListener("keydown", (inn_event) => {
       const tmp_now = Date.now();
 
@@ -413,23 +416,12 @@ class InputHandler {
       if (tmp_pressed_index === -1) {
         //it wasn't in the completed list!  Now we can see if it's in current list!
         //  a) it's not there - this is expected, and we just create it and add it.
-        //  b) it's there - this is a mess up.  somehow we got another keydown withot a keyup..  we'll look at time and
-        //       decide what to do
+        //  b) it's there - this means that the system is sending us MORE keydowns, while we're really jsut holding
+        //       a key down...
         tmp_pressed = this.#current.find(cur => cur.type == InputAction.TYPE_KEY && cur.name == inn_event.key);
         if (tmp_pressed) {
-          //we found it!  Weird!  we're getting a keydown after a previous keydown, with no keyup inbetween..
-          //  if we're within doubleclick time, let's update the counter, otherwise we'll reset it.
-          if (tmp_now - tmp_pressed.timeEnd > this.#doubleClickDelay) {
-            //it's beyond double click, so we'll reset it.
-            tmp_pressed.reset(tmp_now);
-            //and we're good!
-          }
-          else {
-            //we want to consider it a double click!
-            tmp_pressed.numPresses++;
-            tmp_pressed.timeStart = tmp_now;
-            tmp_pressed.timeEnd = tmp_now;
-          }
+          //we found it!  We can just return...
+          return;
         }
         else {
           //greate!  it wasn't found.  we create it and add it!
@@ -453,7 +445,7 @@ class InputHandler {
       //  if that's even a thing....
       if (tmp_now - tmp_pressed.timeEnd < InputHandler.#TOO_CLOSE) {
         //I guess we just leave it there in completed..  we don't need to do anything at all..
-        return
+        return;
       }
       //if the click is beyond double time, we reset it
       if (tmp_now - tmp_pressed.timeEnd > this.#doubleClickDelay) {
@@ -639,7 +631,7 @@ class InputHandler {
     //  happen, since any time we get multiple clicks in a row, the end-time is updated, so the
     //  earlier calls will fail on the less than doubleClick time check.
     if (tmp_index === -1) {
-      console.log("nothing!");
+      //console.log("nothing!");
       return;
     }
 
@@ -648,7 +640,7 @@ class InputHandler {
       this.#overlayElement.removeChild(this.#allHTMLElements[tmp_index]);
       this.#allHTMLElements.splice(tmp_index, 1);
       this.#all.splice(tmp_index, 1);
-      this.#completed.pop();
+      this.#completed.splice(this.#completed.indexOf(in_inputAction), 1);
       //if there are no more HTML elements, deleeete the overlayElement from body!
       if (this.#all.length === 0) {
         document.body.removeChild(this.#overlayElement);
