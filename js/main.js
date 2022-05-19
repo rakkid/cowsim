@@ -409,6 +409,11 @@ class InputHandler {
         return;
       }
 
+      //OK... soooo TODO: if they have keys down while we lose window focus, all keys need to be set as "keyup"
+      //  Or at least the tab key..  Technically everything will be looking for keyup actions, so long keydowns
+      //  shouldn't really matter.  Except the cow walking around.  Oh noo, the cow walked to the edge of the 
+      //  pasture!
+
       //OK, I want to look at event.CODE, rather than event.KEY.  Code does'nt change from modifiers (shift, etc..)
 
       //let's look for the key..
