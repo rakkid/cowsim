@@ -158,9 +158,9 @@ class GameTime {
   }
 
   update() {
-    const tmp_time = Date.now();
-    this.#timeElapsed = tmp_time - this.#lastTime;
-    this.#lastTime = tmp_time;
+    const tmp_now = Date.now();
+    this.#timeElapsed = tmp_now - this.#lastTime;
+    this.#lastTime = tmp_now;
   }
 }
 
@@ -301,6 +301,33 @@ class Game {
   }
 }
 
+
+//umm..  create an object to store each button press, I guess.
+class InputAction {
+  static TYPE_KEY = 1;
+  static TYPE_MOUSE = 2;
+  constructor(in_type, in_name, in_time) {
+    this.type = in_type;
+    this.name = in_name;
+    this.timeStart = in_time;
+    this.timeEnd = in_time;
+    this.numPresses = 1;
+    this.released = false;
+  }
+  //this resets time and presses and released...
+  reset(in_time) {
+    this.timeStart = in_time;
+    this.timeEnd = in_time;
+    this.numPresses = 1;
+    this.released = false;
+  }
+}
+
+//sooo... should I do a think where we can create multiple input handlers?  Then can swap which is currently active?
+//  So we can liike, have one for the gameplay, and the game elements register with that one.  Then have another
+//  for maybe hitting escape to enter some menu shit.  Different elements register with that one.  Then we 
+//  enable/disable which one is active.  That shouldn't be too hard to add in later.
+
 //Input handler....  what are our inputs we care about....?
 //  up/down/left/right ??  mouse cicks??  both??  for movement..
 //  click on a thing (if in range, interact.. otherwise walk to spot??)
@@ -310,10 +337,31 @@ class Game {
 //  can just be like if (input.clicked()) { ... }
 class InputHandler {
   static #instance = null;
+  static #TOO_CLOSE = 2;
+
+  #draw = false;
+  #doubleClickDelay = 400;
+
+  //stored buttons..  I'm not going to do modifiers like Command+S, Shift+S, etc..  All button presses here are individual.
+  #current = [];
+  #completed = [];
+  #all = [];
+  #overlayElement;
+  #allHTMLElements = [];
 
   constructor() {
     //to do...
     this.testValue = "null";
+  }
+
+  set draw(in_draw) {
+    this.#draw = in_draw;
+  }
+  set doubleClickDelay(in_time) {
+    this.#doubleClickDelay = in_time;
+  }
+  get doubleClickDelay() {
+    return this.#doubleClickDelay;
   }
 
   static Instance() {
@@ -329,8 +377,293 @@ class InputHandler {
       InputHandler.#instance.testValue = "did not exist!";
       return InputHandler.#instance;
     }
-    
+  }
 
+  //How do I want to handle more-than double clicks?  Liiike, 3 in a row?
+  //  a) ignore them - until they stop clicking beyond double-click time, do not let double-click be recognized.
+  //  b) once we get a double click, the next click immediately resets to click #1
+  //  c) once we get a double click, all clicks up to the double-click time get ignored, and the first click after
+  //       double-click time becomes the new first click
+  registerInputHandling() {
+    //add an event listener for key-down presses.
+    //When we get these, we need to save the key to current!
+    //  IF we for some reason already have it stored in current, then skip it....???
+    //  IF we have it in completed, then they've pressed the key AGAIN before the game has even gotten info about the first
+    //    press of this key.  What should we do?  I guess I need to add a counter?
+    //    I guess I could use this for double clicks.... have a double-click speed.  We keep everything in completed until
+    //    after the double-click length.
+    //What if we get events out of order..?  Could it happen???  We press a button so fast that keydown and keyup get 
+    //  kicked off at the same time, and we process keyup FIRST?  Maybe when checking the completed, see if its time
+    //  matches current time?
+    document.addEventListener("keydown", (inn_event) => {
+      const tmp_now = Date.now();
+
+      let tmp_all_index = -1;
+      let tmp_pressed = null;
+
+      //let's look for the key..
+      //  a) it's already in our current list...  that would mean we somehow missed the keyup??
+      //  b) it's in our completed list..  means we're:
+      //     a) a double click 
+      //     b) a new click (beyond double click time) .. so gotta reset things
+      //     c) somehow the keyup event registered before the keydown event??!  (is that possible??) - in this case, we 
+      //          don't need to do anything..
+      //look for it in the completed list..
+      const tmp_pressed_index = this.#completed.findIndex(cur => cur.type === InputAction.TYPE_KEY && cur.name === inn_event.key);
+      if (tmp_pressed_index === -1) {
+        //it wasn't in the completed list!  Now we can see if it's in current list!
+        //  a) it's not there - this is expected, and we just create it and add it.
+        //  b) it's there - this is a mess up.  somehow we got another keydown withot a keyup..  we'll look at time and
+        //       decide what to do
+        tmp_pressed = this.#current.find(cur => cur.type == InputAction.TYPE_KEY && cur.name == inn_event.key);
+        if (tmp_pressed) {
+          //we found it!  Weird!  we're getting a keydown after a previous keydown, with no keyup inbetween..
+          //  if we're within doubleclick time, let's update the counter, otherwise we'll reset it.
+          if (tmp_now - tmp_pressed.timeEnd > this.#doubleClickDelay) {
+            //it's beyond double click, so we'll reset it.
+            tmp_pressed.reset(tmp_now);
+            //and we're good!
+          }
+          else {
+            //we want to consider it a double click!
+            tmp_pressed.numPresses++;
+            tmp_pressed.timeStart = tmp_now;
+            tmp_pressed.timeEnd = tmp_now;
+          }
+        }
+        else {
+          //greate!  it wasn't found.  we create it and add it!
+          tmp_pressed = new InputAction(InputAction.TYPE_KEY, inn_event.key, tmp_now);
+          this.#current.push(tmp_pressed);
+          //we also need to add it to all!
+          this.#all.push(tmp_pressed);
+          //and we KNOW the index in all (last location), so we can save that!
+          tmp_all_index = this.#all.length - 1;
+        }
+        //now draw/update the overlay!
+        this.#drawOverlay(tmp_all_index, tmp_pressed);
+
+        //and we can return!
+        return;
+      }
+
+      //we found this guy in the completed!  Let's get it using index and see what we need to do with it..
+      tmp_pressed = this.#completed[tmp_pressed_index];
+      //if we're suuuuper close to the keyup event, then we can consider this a "we got the down after the up"..
+      //  if that's even a thing....
+      if (tmp_now - tmp_pressed.timeEnd < InputHandler.#TOO_CLOSE) {
+        //I guess we just leave it there in completed..  we don't need to do anything at all..
+        return
+      }
+      //if the click is beyond double time, we reset it
+      if (tmp_now - tmp_pressed.timeEnd > this.#doubleClickDelay) {
+        //reset it!
+        tmp_pressed.reset(tmp_now);
+      }
+      else {
+        //we need to update the time, num pressed, and released..  (almost reset the thing, but not, because we want
+        //  to remember the num pressed.)..  okay... we save num presses and reset.  that'll be cleaner
+        const tmp_presses = tmp_pressed.numPresses;
+        tmp_pressed.reset(tmp_now);
+        tmp_pressed.numPresses = tmp_presses + 1;
+      }
+      //now, we need to remove the guy from completed, and put it back into current!
+      this.#completed.splice(tmp_pressed_index, 1);
+      this.#current.push(tmp_pressed);
+
+      //now draw/update the overlay!
+      this.#drawOverlay(tmp_all_index, tmp_pressed);
+
+    }, false);
+
+    //add an event listern for key-up unpresses!
+    //When we get these, they're done pressing!  Pull it from current and put it in completed.
+    //  if it's not in current, then we missed the key-down??  create one and put it in completed..
+    document.addEventListener("keyup", (inn_event) => {
+      const tmp_now = Date.now();
+
+      let tmp_all_index = -1;
+      let tmp_pressed = null;
+
+      //let's look for the key..
+      const tmp_pressed_index = this.#current.findIndex(cur => cur.type === InputAction.TYPE_KEY && cur.name === inn_event.key);
+
+      if (tmp_pressed_index === -1) {
+        //it wasn't found!  Weird, but OK.  Let's see if it exists in completed..  we'll either need to update that, or 
+        //  build a new pressed..
+        //check the completed guy for it...
+        tmp_pressed = this.#completed.find(cur => cur.type === InputAction.TYPE_KEY && cur.name === inn_event.key);
+        if (tmp_pressed) {
+          //okay!  It's there...  we need to update it...
+          //first save it as draw_element (for passing to draw method.. so draw can find this guy)
+          tmp_draw_element = tmp_pressed;
+
+          //if now is beyond than double-pressed time, then we do NOT save it as double pressed.
+          if (tmp_now - tmp_pressed.timeEnd > this.#doubleClickDelay) {
+            //we need to consider this guy a "new" object..  so we want to reset it..  this sets the time and num presses
+            //  (and also sets released to false, which we need to set to true..)
+            tmp_pressed.reset(tmp_now);
+            tmp_pressed.released = true;
+          }
+          else {
+            //we can consider this guy a double press!
+            tmp_pressed.numPresses++;
+            //update the time...  since we never got a start time, we need to use tmp_now for start/end times..
+            tmp_pressed.timeStart = tmp_now;
+            tmp_pressed.timeEnd = tmp_now;
+          }
+        }
+        else {
+          //it wasn't there.. we need to create it and add it to completed...
+          tmp_pressed = new InputAction(InputAction.TYPE_KEY, inn_event.key, tmp_now);
+          tmp_pressed.released = true;
+          this.#completed.push(tmp_pressed);
+          //we also need to add it to all!
+          this.#all.push(tmp_pressed);
+          //and we KNOW the index in all (last location), so we can save that!
+          tmp_all_index = this.#all.length - 1;
+        }
+        //now draw/update the overlay!
+        this.#drawOverlay(tmp_all_index, tmp_pressed);
+
+        //and we're done...
+        return;
+      }
+
+      //we found the index!
+      tmp_pressed = this.#current[tmp_pressed_index];
+      //Time to update it, remove it from current, and put in completed.
+      tmp_pressed.timeEnd = tmp_now;
+      tmp_pressed.released = true;
+      //remove from current (that's what we need the index for...)
+      this.#current.splice(tmp_pressed_index, 1);
+      //and add it to completed!
+      this.#completed.push(tmp_pressed);
+
+      //now draw/update the overlay!  tmp_all_index is -1...
+      this.#drawOverlay(tmp_all_index, tmp_pressed);
+
+    }, false);
+  }
+
+  #eventDown(in_event, in_type) {
+
+  }
+
+  #eventUp(in_event, in_type) {
+
+  }
+
+  //time to draw the input overlay!
+  #drawOverlay(in_index, in_inputAction) {
+    //if draw isn't true, then do NOT draw the overlay!
+    if (this.#draw !== true) {
+      return;
+    }
+
+    //OK!  To draw the overlay!
+    //  1) create the overlay div
+    //  2) add all our buttons to it
+    //  3) put it in the lower left corner??  Some corner..
+
+    //does the overlay exist?
+    if (this.#overlayElement) {
+      //great... do we need to display it?  (ie, it was hidden..)  we know this is true if in_index is zero!
+      //  that means this is the ONLY press, and we just added it to the list!
+      if (in_index === 0) {
+        //okay!  gotta display it!
+        document.body.appendChild(this.#overlayElement);
+      }
+      //else we're good...
+    }
+    else {
+      //we haven't created it yet!  Time to create the overlay guy!
+      this.#overlayElement = document.createElement("div");
+      this.#overlayElement.id = "input_overlay";
+      document.body.appendChild(this.#overlayElement);
+    }
+
+    //OK, now, if in_index is > -1, then we are adding a new guy!
+    //  a) create a new html thingy thangy
+    //  b) add it to the end of our HTMLElements array
+    //ELSE, in_index is -1..  in that case, we need to find the index of the press, and then update the HTMLElement 
+    //  to match what it's doing.
+    if (in_index === -1) {
+      //find it, update it.
+      const tmp_index = this.#all.indexOf(in_inputAction);
+      //if index is -1, then we couldn't find it, which means we're back from a phantom setTimeout() call...
+      //  if button is double pressed and released faster than double click delay, then second one might get here
+      //  after the first guy deleted it...???  I thouht it would update the timeEnd appropriately, but maybe not.
+      console.log("time end is.. " + in_inputAction.timeEnd + ", time now.. " + Date.now() + " - " + (Date.now() - in_inputAction.timeEnd));
+      //TODO:  HMMMM!!!!  Something is funky.
+      //  first press:  time is 10
+      //  first release: time is 120 ...  kick off checker for +401  (521)
+      //  second press: time is 240 ...
+      //  second release: time is 360 .. kick off checker for +401 (761)
+      //  first return: time is 521 ... 
+      //OH DUH I GET IT!!  - The first callback is kicking off a THIRD callback!!  Looks like I need to tell myself when I'm 
+      //  handling a callback vs  click.  Or maybe I'll put the callback in a different fucktion.
+
+      if (tmp_index === -1) {
+        console.log("nothing!");
+        return;
+      }
+      //and add the up/down aspect..
+      if (in_inputAction.released) {
+        //this is up..
+        //if we're within double-click, give it keyup, otherwise give it nothing..
+        if (Date.now() - in_inputAction.timeEnd <= this.#doubleClickDelay) {
+          this.#allHTMLElements[tmp_index].classList.remove("input_keydown");
+          this.#allHTMLElements[tmp_index].classList.add("input_keyup");
+          //aand, I guess we need to call this guy with a timer, to update the doubleclick color.
+          setTimeout(() => { this.#drawOverlay(-1, in_inputAction) }, this.#doubleClickDelay+1);
+        }
+        else {
+          //actually... we can just delete it..
+          this.#overlayElement.removeChild(this.#allHTMLElements[tmp_index]);
+          this.#allHTMLElements.splice(tmp_index, 1);
+          this.#all.splice(tmp_index, 1);
+          this.#completed.pop();
+          //if there are no more HTML elements, deleeete the overlayElement from body!
+          if (this.#all.length === 0) {
+            document.body.removeChild(this.#overlayElement);
+          }
+
+//          this.#allHTMLElements[tmp_index].classList.remove("input_keyup");
+//          this.#allHTMLElements[tmp_index].classList.remove("input_keydown");
+        }
+      }
+      else {
+        //this is down..
+        this.#allHTMLElements[tmp_index].classList.remove("input_keyup");
+        this.#allHTMLElements[tmp_index].classList.add("input_keydown");
+      }
+    }
+    else {
+      //create new one..
+      const tmp_element = document.createElement("div");
+      tmp_element.classList.add("input_element");
+      //now add the up/down aspect...
+      if (in_inputAction.released) {
+        //this is up..
+        //if we're within double-click, give it keyup, otherwise give it nothing..
+        if (Date.now() - in_inputAction.timeEnd <= this.#doubleClickDelay) {
+          tmp_element.classList.add("input_keyup");
+          //aand, I guess we need to call this guy with a timer, to update the doubleclick color.
+          setTimeout(() => { this.#drawOverlay(-1, in_inputAction) }, this.#doubleClickDelay+1);
+        }
+      }
+      else {
+        //this is down..
+        tmp_element.classList.add("input_keydown");
+      }
+      //add the name!
+      tmp_element.innerHTML = in_inputAction.name;
+      //add it to the HTMLElements array..
+      this.#allHTMLElements.push(tmp_element);
+      //and add it to the overlay!
+      this.#overlayElement.appendChild(tmp_element);
+    }
   }
 
   //all our accessors to see what inputs were inputted!
@@ -345,6 +678,10 @@ class InputHandler {
 //get/create our game instance..
 const game = Game.Instance();
 document.getElementById("timeUpdate").innerText = InputHandler.Instance().testValue;
+
+InputHandler.Instance().registerInputHandling();
+InputHandler.Instance().draw = true;
+//InputHandler.Instance().doubleClickDelay = 2000;
 
 //should we have a start, for all the set up?  Probably...
 

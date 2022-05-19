@@ -1,7 +1,11 @@
 #input_overlay {
-	max-width: 200px;
-	min-width: 100px;
-	min-height: 40px;
+	position: absolute;
+	bottom: 20px;
+	right: 20px;
+	z-index: 1000;
+	max-width: 359px;
+	min-width: 50px;
+	min-height: 50px;
 	padding: 2px;
 	text-align: right;
 	border: dashed #cccccc;
