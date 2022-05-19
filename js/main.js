@@ -591,47 +591,13 @@ class InputHandler {
     if (in_index === -1) {
       //find it, update it.
       const tmp_index = this.#all.indexOf(in_inputAction);
-      //if index is -1, then we couldn't find it, which means we're back from a phantom setTimeout() call...
-      //  if button is double pressed and released faster than double click delay, then second one might get here
-      //  after the first guy deleted it...???  I thouht it would update the timeEnd appropriately, but maybe not.
-      console.log("time end is.. " + in_inputAction.timeEnd + ", time now.. " + Date.now() + " - " + (Date.now() - in_inputAction.timeEnd));
-      //TODO:  HMMMM!!!!  Something is funky.
-      //  first press:  time is 10
-      //  first release: time is 120 ...  kick off checker for +401  (521)
-      //  second press: time is 240 ...
-      //  second release: time is 360 .. kick off checker for +401 (761)
-      //  first return: time is 521 ... 
-      //OH DUH I GET IT!!  - The first callback is kicking off a THIRD callback!!  Looks like I need to tell myself when I'm 
-      //  handling a callback vs  click.  Or maybe I'll put the callback in a different fucktion.
-
-      if (tmp_index === -1) {
-        console.log("nothing!");
-        return;
-      }
       //and add the up/down aspect..
       if (in_inputAction.released) {
         //this is up..
-        //if we're within double-click, give it keyup, otherwise give it nothing..
-        if (Date.now() - in_inputAction.timeEnd <= this.#doubleClickDelay) {
-          this.#allHTMLElements[tmp_index].classList.remove("input_keydown");
-          this.#allHTMLElements[tmp_index].classList.add("input_keyup");
-          //aand, I guess we need to call this guy with a timer, to update the doubleclick color.
-          setTimeout(() => { this.#drawOverlay(-1, in_inputAction) }, this.#doubleClickDelay+1);
-        }
-        else {
-          //actually... we can just delete it..
-          this.#overlayElement.removeChild(this.#allHTMLElements[tmp_index]);
-          this.#allHTMLElements.splice(tmp_index, 1);
-          this.#all.splice(tmp_index, 1);
-          this.#completed.pop();
-          //if there are no more HTML elements, deleeete the overlayElement from body!
-          if (this.#all.length === 0) {
-            document.body.removeChild(this.#overlayElement);
-          }
-
-//          this.#allHTMLElements[tmp_index].classList.remove("input_keyup");
-//          this.#allHTMLElements[tmp_index].classList.remove("input_keydown");
-        }
+        this.#allHTMLElements[tmp_index].classList.remove("input_keydown");
+        this.#allHTMLElements[tmp_index].classList.add("input_keyup");
+        //aand, I guess we need to call this guy with a timer, to clear it after double click option expires.
+        setTimeout(() => { this.#clearOverlayElement(in_inputAction) }, this.#doubleClickDelay+1);
       }
       else {
         //this is down..
@@ -646,12 +612,9 @@ class InputHandler {
       //now add the up/down aspect...
       if (in_inputAction.released) {
         //this is up..
-        //if we're within double-click, give it keyup, otherwise give it nothing..
-        if (Date.now() - in_inputAction.timeEnd <= this.#doubleClickDelay) {
-          tmp_element.classList.add("input_keyup");
-          //aand, I guess we need to call this guy with a timer, to update the doubleclick color.
-          setTimeout(() => { this.#drawOverlay(-1, in_inputAction) }, this.#doubleClickDelay+1);
-        }
+        tmp_element.classList.add("input_keyup");
+        //aand, I guess we need to call this guy with a timer, to clear it after double click option expires.
+        setTimeout(() => { this.#clearOverlayElement(in_inputAction) }, this.#doubleClickDelay+1);
       }
       else {
         //this is down..
@@ -664,6 +627,35 @@ class InputHandler {
       //and add it to the overlay!
       this.#overlayElement.appendChild(tmp_element);
     }
+  }
+
+  //When an element gets its up-click, it triggers a delayed call to here, to clear it.
+  //  the delay is doubleclick time + 1, so we will always be OK to clear it, if it hasn't been
+  //  clicked again in that time.
+  #clearOverlayElement(in_inputAction) {
+    const tmp_index = this.#all.indexOf(in_inputAction);
+
+    //umm... just in case we don't find it, it means it was already deleted... but this shouldn't
+    //  happen, since any time we get multiple clicks in a row, the end-time is updated, so the
+    //  earlier calls will fail on the less than doubleClick time check.
+    if (tmp_index === -1) {
+      console.log("nothing!");
+      return;
+    }
+
+    if (Date.now() - in_inputAction.timeEnd > this.#doubleClickDelay) {
+      //we're beyond the click delay, so we are good to delete it!
+      this.#overlayElement.removeChild(this.#allHTMLElements[tmp_index]);
+      this.#allHTMLElements.splice(tmp_index, 1);
+      this.#all.splice(tmp_index, 1);
+      this.#completed.pop();
+      //if there are no more HTML elements, deleeete the overlayElement from body!
+      if (this.#all.length === 0) {
+        document.body.removeChild(this.#overlayElement);
+      }
+    }
+    //else it must have been clicked again, so no need to delete.. and THAT click will initiate a new
+    //  attempt to delete.
   }
 
   //all our accessors to see what inputs were inputted!
