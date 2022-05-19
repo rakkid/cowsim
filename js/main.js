@@ -404,6 +404,13 @@ class InputHandler {
       let tmp_all_index = -1;
       let tmp_pressed = null;
 
+      //oh sweet... we can check if it's a repeat event.  if so, we can ignore it.
+      if (inn_event.repeat) {
+        return;
+      }
+
+      //OK, I want to look at event.CODE, rather than event.KEY.  Code does'nt change from modifiers (shift, etc..)
+
       //let's look for the key..
       //  a) it's already in our current list...  that would mean we somehow missed the keyup??
       //  b) it's in our completed list..  means we're:
@@ -412,20 +419,20 @@ class InputHandler {
       //     c) somehow the keyup event registered before the keydown event??!  (is that possible??) - in this case, we 
       //          don't need to do anything..
       //look for it in the completed list..
-      const tmp_pressed_index = this.#completed.findIndex(cur => cur.type === InputAction.TYPE_KEY && cur.name === inn_event.key);
+      const tmp_pressed_index = this.#completed.findIndex(cur => cur.type === InputAction.TYPE_KEY && cur.name === inn_event.code);
       if (tmp_pressed_index === -1) {
         //it wasn't in the completed list!  Now we can see if it's in current list!
         //  a) it's not there - this is expected, and we just create it and add it.
         //  b) it's there - this means that the system is sending us MORE keydowns, while we're really jsut holding
         //       a key down...
-        tmp_pressed = this.#current.find(cur => cur.type == InputAction.TYPE_KEY && cur.name == inn_event.key);
+        tmp_pressed = this.#current.find(cur => cur.type == InputAction.TYPE_KEY && cur.name == inn_event.code);
         if (tmp_pressed) {
           //we found it!  We can just return...
           return;
         }
         else {
           //greate!  it wasn't found.  we create it and add it!
-          tmp_pressed = new InputAction(InputAction.TYPE_KEY, inn_event.key, tmp_now);
+          tmp_pressed = new InputAction(InputAction.TYPE_KEY, inn_event.code, tmp_now);
           this.#current.push(tmp_pressed);
           //we also need to add it to all!
           this.#all.push(tmp_pressed);
@@ -478,13 +485,13 @@ class InputHandler {
       let tmp_pressed = null;
 
       //let's look for the key..
-      const tmp_pressed_index = this.#current.findIndex(cur => cur.type === InputAction.TYPE_KEY && cur.name === inn_event.key);
+      const tmp_pressed_index = this.#current.findIndex(cur => cur.type === InputAction.TYPE_KEY && cur.name === inn_event.code);
 
       if (tmp_pressed_index === -1) {
         //it wasn't found!  Weird, but OK.  Let's see if it exists in completed..  we'll either need to update that, or 
         //  build a new pressed..
         //check the completed guy for it...
-        tmp_pressed = this.#completed.find(cur => cur.type === InputAction.TYPE_KEY && cur.name === inn_event.key);
+        tmp_pressed = this.#completed.find(cur => cur.type === InputAction.TYPE_KEY && cur.name === inn_event.code);
         if (tmp_pressed) {
           //okay!  It's there...  we need to update it...
           //first save it as draw_element (for passing to draw method.. so draw can find this guy)
@@ -507,7 +514,7 @@ class InputHandler {
         }
         else {
           //it wasn't there.. we need to create it and add it to completed...
-          tmp_pressed = new InputAction(InputAction.TYPE_KEY, inn_event.key, tmp_now);
+          tmp_pressed = new InputAction(InputAction.TYPE_KEY, inn_event.code, tmp_now);
           tmp_pressed.released = true;
           this.#completed.push(tmp_pressed);
           //we also need to add it to all!

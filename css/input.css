@@ -15,10 +15,12 @@
 .input_element {
 	height: 40px;
 	line-height: 34px;
-	width: 40px;
+	min-width: 40px;
 	text-align: center;
 	border: solid 3px #aaaaaa;
 	padding: 0px;
+	padding-left: 2px;
+	padding-right: 2px;
 	margin: 2px;
 	background-color: #e7e7e7;
 	display: inline-block;
