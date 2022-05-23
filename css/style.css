@@ -44,7 +44,7 @@ footer {
 /* ADDITIONAL STYLES
 /*******************************************/
 
-#gameWindowBorder {
+.gameWindowBorder {
   position: absolute;
   z-index: 10;
   borderr: solid 5px black;
@@ -52,7 +52,7 @@ footer {
   min-width: 120px;
 }
 
-#gameWindow {
+.gameWindow {
   position: relative;
   overflow: hidden;
   text-align: right;

@@ -665,12 +665,18 @@ class InputHandler {
   //all our accessors to see what inputs were inputted!
 }
 
-//Here's the game window...?
+//Here's the game window...?  OK, making it so I can use multiple of these, and they will be tied to the 
+//  size of a parent..
+//  we'll use 2 ways...  borderRatio and parentRatio.
+//  borderRatio - construct our size by calculating the border/padding between us and parent
+//  parentRatio - construct our size so we're a % size of parent.
 class GameWindow {
   //we want the page size, and we want some sorta top/bottom left/right min border..
   //we also want a height/width ratio
-  #minBorderRatio = .18;
+  #borderRatio;
+  #parentRatio;
   #widthHeightRatio = 12/8;
+  #parentElement;
   #width;
   #height;
   #borderPadding;
@@ -678,23 +684,58 @@ class GameWindow {
   #windowBorderElement;
   #windowScale;
 
+  #topLeftLoc = [0, 0];
+
   //maybe I don't even need a list of elements..?  Unless this guy determines what is and ISN'T visable..
   #elements = [];
 
   #bodyWidth;
   #bodyHeight;
 
-  constructor() {
-    this.#bodyWidth = document.documentElement.clientWidth;
-    this.#bodyHeight = document.documentElement.clientHeight;
+  constructor(in_parent_element, in_parent_ratio, in_border_ratio, in_width_height_ratio) {
+    if (!in_parent_ratio && !in_border_ratio) {
+      throw "GameWindow must have a size ratio provided!";
+    }
+    this.#parentElement = in_parent_element
+    this.#bodyWidth = in_parent_element.clientWidth;
+    this.#bodyHeight = in_parent_element.clientHeight;
+
+    this.#borderRatio = in_border_ratio;
+    //umm... if borderRatio is provided, calc paretRatio..
+    if (in_border_ratio > 0) {
+      const tmp_parent_ratio = 1 - (2 * in_border_ratio);
+
+      //now do I care about this...??
+      if (in_parent_ratio > 0 && tmp_parent_ratio > in_parent_ratio) {
+        //this means that the provided parent ratio is smaller than expected based on border ratio..
+        //soo...  this guy's size PLUS border is less than parent..  do I use the parent ratio, then?
+        //  I guess so.
+        this.#parentRatio = in_parent_ratio;
+      }
+      else {
+        this.#parentRatio = tmp_parent_ratio;
+      }
+    }
+    else {
+      this.#parentRatio = in_parent_ratio;
+    }
+
+    if (in_width_height_ratio > 0) {
+      this.#widthHeightRatio = in_width_height_ratio;
+    }
 
     this.#updateSize();
-    this.#buildWindow();
   }
 
+  //TODO:  Ummm.....  when I created this with borderRatio, I had to make sure we were smaller on all 4 sides..
+  //  now that I'm doing a parent ratio, do I do the same thing???  Liiike, 25% of width OR height??  Or just 1?
   #updateSize() {
-    let tmp_width_max = Math.floor(this.#bodyWidth * (1 - 2*this.#minBorderRatio));
-    let tmp_height_max = Math.floor(this.#bodyHeight * (1 - 2*this.#minBorderRatio));
+    //let tmp_width_max = Math.floor(this.#bodyWidth * (1 - 2*this.#minBorderRatio));
+    //let tmp_height_max = Math.floor(this.#bodyHeight * (1 - 2*this.#minBorderRatio));
+
+    let tmp_width_max = Math.floor(this.#bodyWidth * this.#parentRatio);
+    let tmp_height_max = Math.floor(this.#bodyHeight * this.#parentRatio);
+
     console.log("max w/h are: " + tmp_width_max + " / " + tmp_height_max);
 
     //now we need to see which is the limiting one...
@@ -714,7 +755,10 @@ class GameWindow {
     //the scaling is how small we are compared to 1200x800??  Maybe I should have tiers..
     this.#windowScale = this.#width / 1200;
 
-    this.#borderPadding = (this.#bodyWidth - this.#width) / 2;
+    //TODO: change this to something that either uses a padding OR the borderRatio
+    if (this.#borderRatio > 0) {
+      this.#borderPadding = Math.floor(this.#bodyWidth * this.#borderRatio);
+    }
 
     console.log("window will be: " + this.#width + " x " + this.#height);
     console.log("webpage is: " + this.#bodyWidth + " x " + this.#bodyHeight);
@@ -722,12 +766,12 @@ class GameWindow {
     //bam.
   }
 
-  #buildWindow() {
+  buildWindow() {
     //let's build the windowww...
     this.#windowBorderElement = document.createElement("div");
-    this.#windowBorderElement.id = "gameWindowBorder";
+    this.#windowBorderElement.classList.add("gameWindowBorder");
     this.#windowElement = document.createElement("div");
-    this.#windowElement.id = "gameWindow";
+    this.#windowElement.classList.add("gameWindow");
 
     this.#windowBorderElement.appendChild(this.#windowElement);
     document.body.appendChild(this.#windowBorderElement);
@@ -735,8 +779,14 @@ class GameWindow {
     //now set the size..
     this.#windowElement.style.width = this.#width + "px";
     this.#windowElement.style.height = this.#height + "px";
-    this.#windowBorderElement.style.top = (this.#borderPadding - 5) + "px";
-    this.#windowBorderElement.style.left = (this.#borderPadding - 5) + "px";
+    if (this.#borderPadding > 0) {
+      this.#windowBorderElement.style.top = this.#borderPadding + "px";
+      this.#windowBorderElement.style.left = this.#borderPadding + "px";
+    }
+    else {
+      this.#windowBorderElement.style.top = this.#topLeftLoc[1] + "px";
+      this.#windowBorderElement.style.left = this.#topLeftLoc[0] + "px";
+    }
   }
 
   //adds the element to the window...
@@ -766,6 +816,15 @@ class GameWindow {
 
   get windowElement() {
     return this.#windowElement;
+  }
+  set widthHeightRatio(in_ratio) {
+    this.#widthHeightRatio = in_ratio;
+  }
+  set location(in_loc) {
+    this.#topLeftLoc = in_loc;
+  }
+  get size() {
+    return { width: this.#width, height: this.#height };
   }
 }
 
@@ -1120,7 +1179,15 @@ let tmp_screen_width = document.body.clientWidth;
 let tmp_screen_height = document.body.clientHeight;
 //alert("h x w: " + tmp_screen_height + " x " + tmp_screen_width);
 
-let gameWindow = new GameWindow();
+let gameWindow = new GameWindow(document.documentElement, 0, 0.18, 12/8);
+gameWindow.buildWindow();
+let charWindow = new GameWindow(gameWindow.windowElement, 0.3, 0, 3/2);
+//let adWindow = new GameWindow(gameWindow.windowElement, 0.25, 0, 3/2);
+
+//top location is....... (parent's height - my height) * .3 ...  that's like 30% padding top, 60% bottom..
+charWindow.location = [gameWindow.windowElement.getBoundingClientRect().left, 
+    (gameWindow.windowElement.getBoundingClientRect().top - charWindow.size.height) * .35];
+charWindow.buildWindow();
 
 //here's our canvas overlay..
 //let tmp_canvas = document.createElement("img");
@@ -1153,4 +1220,15 @@ function imagesLoaded() {
   tmp_canvas.right = "assets/canvas_edge_v_right.png";
   tmp_canvas.top = "assets/canvas_edge_h_top.png";
   tmp_canvas.createCanvas();
+
+  const tmp_char_canvas = new CanvasOverlay("assets/canvas_36tpi_2x2_288.png", .5, charWindow.windowElement);
+  tmp_char_canvas.zIndex = 10;
+  tmp_char_canvas.left = "assets/canvas_edge_v_light.png";
+  tmp_char_canvas.bottom = "assets/canvas_edge_h_light.png";
+  tmp_char_canvas.right = "assets/canvas_edge_v_right.png";
+  tmp_char_canvas.top = "assets/canvas_edge_h_top.png";
+  tmp_char_canvas.createCanvas();
+
+
+
 }
