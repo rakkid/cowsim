@@ -269,9 +269,9 @@ class Game {
   //create an array that looks at the last 3 or 5 frames, and adjusts based on that?
   gameLoop() {
     this.#counter++;
-    this.#totalTimeElapsed += this.#gameTimer.timeElapsed;
     //update our gameTimer..
     this.#gameTimer.update(this.#gameTime);
+    this.#totalTimeElapsed += this.#gameTimer.timeElapsed;
     //document.getElementById("timeUpdate").innerText = "z";
     if (this.#elementTimeUpdate === null) {
       this.#elementTimeUpdate = document.getElementById("timeUpdate");
@@ -292,7 +292,7 @@ class Game {
     //look at last frames and adjust...
     const tmp_remaining_time = this.#targetFrameTime - (Date.now() - this.#gameTimer.lastTime) - tmp_late;
     //this.#elementTimeUpdate.innerText = this.#counter + " time to sleep: " + tmp_remaining_time + ", target: " + this.#targetFrameTime;
-    document.getElementById("p2").innerText = this.#totalTimeElapsed;
+    document.getElementById("elapsedTime").innerText = this.#totalTimeElapsed;
 
     if (this.#counter < 30) {
      setTimeout(() => { this.gameLoop() }, tmp_remaining_time > 0 ? tmp_remaining_time : 0);
@@ -665,6 +665,435 @@ class InputHandler {
   //all our accessors to see what inputs were inputted!
 }
 
+//Here's the game window...?
+class GameWindow {
+  //we want the page size, and we want some sorta top/bottom left/right min border..
+  //we also want a height/width ratio
+  #minBorderRatio = .18;
+  #widthHeightRatio = 12/8;
+  #width;
+  #height;
+  #borderPadding;
+  #windowElement;
+  #windowBorderElement;
+  #windowScale;
+
+  //maybe I don't even need a list of elements..?  Unless this guy determines what is and ISN'T visable..
+  #elements = [];
+
+  #bodyWidth;
+  #bodyHeight;
+
+  constructor() {
+    this.#bodyWidth = document.documentElement.clientWidth;
+    this.#bodyHeight = document.documentElement.clientHeight;
+
+    this.#updateSize();
+    this.#buildWindow();
+  }
+
+  #updateSize() {
+    let tmp_width_max = Math.floor(this.#bodyWidth * (1 - 2*this.#minBorderRatio));
+    let tmp_height_max = Math.floor(this.#bodyHeight * (1 - 2*this.#minBorderRatio));
+    console.log("max w/h are: " + tmp_width_max + " / " + tmp_height_max);
+
+    //now we need to see which is the limiting one...
+    let tmp_height_for_width = Math.floor(tmp_width_max / this.#widthHeightRatio);
+    let tmp_width_for_height = Math.floor(tmp_height_max * this.#widthHeightRatio);
+
+    //noww.... which one do we use??  if height_for is > than height_max, then we have to use height_max!
+    if (tmp_height_for_width > tmp_height_max) {
+      this.#width = tmp_width_for_height;
+      this.#height = tmp_height_max;
+    }
+    else {
+      this.#width = tmp_width_max;
+      this.#height = tmp_height_for_width;
+    }
+
+    //the scaling is how small we are compared to 1200x800??  Maybe I should have tiers..
+    this.#windowScale = this.#width / 1200;
+
+    this.#borderPadding = (this.#bodyWidth - this.#width) / 2;
+
+    console.log("window will be: " + this.#width + " x " + this.#height);
+    console.log("webpage is: " + this.#bodyWidth + " x " + this.#bodyHeight);
+    console.log("padding is: " + this.#borderPadding)
+    //bam.
+  }
+
+  #buildWindow() {
+    //let's build the windowww...
+    this.#windowBorderElement = document.createElement("div");
+    this.#windowBorderElement.id = "gameWindowBorder";
+    this.#windowElement = document.createElement("div");
+    this.#windowElement.id = "gameWindow";
+
+    this.#windowBorderElement.appendChild(this.#windowElement);
+    document.body.appendChild(this.#windowBorderElement);
+
+    //now set the size..
+    this.#windowElement.style.width = this.#width + "px";
+    this.#windowElement.style.height = this.#height + "px";
+    this.#windowBorderElement.style.top = (this.#borderPadding - 5) + "px";
+    this.#windowBorderElement.style.left = (this.#borderPadding - 5) + "px";
+  }
+
+  //adds the element to the window...
+  addElement(in_element, in_fixed_scaling) {
+    this.#elements.push(in_element);
+
+    //we need to apply any scaling, that the window has, to the element!  if the element has its own scaling,
+    //  then use that instead of the window's scaling!
+    if (in_fixed_scaling) {
+      in_element.style.height = (in_fixed_scaling*100) + "%";
+    }
+    else {
+      in_element.style.height = (this.#windowScale*100) + "%";
+    }
+
+    //add it to the window!
+    this.#windowElement.appendChild(in_element);
+  }
+
+  removeElement(in_element) {
+    //this.#elements.indexOf(in_element);
+    this.#elements.splice(this.#elements.indexOf(in_element), 1);
+    this.#windowElement.removeChild(in_element);
+  }
+
+  //I guess each element can disable itself, if it's not just gone.
+
+  get windowElement() {
+    return this.#windowElement;
+  }
+}
+
+//load files I care about!
+class FileLoader {
+  static #instance;
+
+  //we need to store the file name when we create the element..  that way, when the element actually
+  //  loads, it can get its filename again! (because the src gets updated to a full file path)
+  #elementToFileMap;
+  #fileMap;
+
+  #numFilesToLoad;
+  #numFilesLoaded;
+  #okToContinue;
+
+  constructor() {
+    this.#fileMap = new Map();
+    this.#elementToFileMap = new Map();
+    this.#numFilesToLoad = 0;
+    this.#numFilesLoaded = 0;
+    this.#okToContinue = false;
+  }
+
+  static Instance() {
+    if (FileLoader.#instance) {
+      return FileLoader.#instance;
+    }
+    FileLoader.#instance = new FileLoader();
+    return FileLoader.#instance;
+  }
+
+  loaded(in_element) {
+    this.#numFilesLoaded += 1;
+    let tmp_file_name = this.#elementToFileMap.get(in_element);
+    console.log("saving to map: " + tmp_file_name);
+    this.#fileMap.set(tmp_file_name, in_element);
+  }
+
+  loadFile(in_url, in_html_type, next) {
+    //set it up for loading..
+    this.#numFilesToLoad += 1;
+
+    const tmp_loaded = document.createElement(in_html_type);
+    //tmp_loaded.src = URL.createObjectURL(in_url);
+    tmp_loaded.src = in_url;
+    this.#elementToFileMap.set(tmp_loaded, in_url);
+    tmp_loaded.onload = function() {
+      URL.revokeObjectURL(this.src);
+      FileLoader.Instance().loaded(this);
+      console.log("file has loaded.. " + FileLoader.Instance().loadingComplete + ", " + FileLoader.Instance().okToContinue);
+      if (FileLoader.Instance().loadingComplete && FileLoader.Instance().okToContinue) {
+        next();
+      }
+      else {
+        console.log("not yet.. " + FileLoader.Instance().okToContinue);
+      }
+    }
+  }
+
+  get loadingComplete() {
+    return this.#numFilesToLoad === this.#numFilesLoaded;
+  }
+  set okToContinue(in_ok) {
+    this.#okToContinue = in_ok;
+  }
+  get okToContinue() {
+    return this.#okToContinue;
+  }
+
+  async waitUntilComplete() {
+
+    //ummm.... have a little loop
+    let tmp_tries = 0;
+    let success = false;
+    while (tmp_tries <= 5) {
+      tmp_tries += 1;
+      console.log("try #" + tmp_tries + " START");
+      success = await this.#checkIfComplete();
+      if (success === true) {
+        console.log("  success! breaking while loop!");
+        break;
+      }
+      console.log("try #" + tmp_tries + " END");
+    }
+    return success;
+  }
+
+  #checkIfComplete() {
+    if (this.#numFilesToLoad === this.numFilesLoaded) {
+      return true;
+    }
+    const resolve = function() {
+      if (this.#numFilesToLoad === this.#numFilesLoaded) {
+        //we are done!
+        return true;
+      }
+      else {
+        return false;
+      }
+    }
+
+    const myPromise = new Promise((resolve) => {
+      setTimeout(() => {
+        resolve();
+      }, 500);
+    })
+  }
+
+  async recursiveWaitForPromises(in_promise) {
+    const resolve = function() {
+      if (this.#numFilesToLoad === this.#numFilesLoaded) {
+        //we are done!
+        imagesLoaded();
+      }
+      else {
+        return false;
+      }
+    }
+
+    in_promise.then(completed => {
+      if (completed) {
+        imagesLoaded();
+      }
+      else {
+        //create a new promise
+        const myPromise = new Promise((resolve) => {
+          setTimeout(() => {
+            resolve();
+          }, 500);
+        });
+      }
+    });
+  }
+
+  //this returns a previously loaded file..
+  getFile(in_name) {
+    console.log("map size: " + this.#fileMap.size + "..  " + this.#elementToFileMap.get(this.#fileMap.get(in_name)));
+    return this.#fileMap.get(in_name);
+  }
+}
+
+//this is going to be its own class.  HTML allows me to repeat a background image, or scale an img.. but I really
+//  want to repeat an img...  SOOooo....  I guess its time to build our own.
+//It'll take in a specific scaling, its parent element (to get size), and the image to use.  It'll scale itself
+//  (which will really be a bunch of images)
+class CanvasOverlay {
+  #image;
+  #imageElement;
+  #scale;
+  #parent;
+
+  #zindex;
+  #left;
+  #bottom;
+  #right;
+  #top;
+  #leftImage;
+  #bottomImage;
+  #rightImage;
+  #topImage;
+
+  #canvasElement;
+
+  constructor(in_image, in_scale, in_parent) {
+    //let's try and get the image from file loader..
+    this.#imageElement = FileLoader.Instance().getFile(in_image);
+    this.#image = in_image;
+    if (!this.#imageElement) {
+      //didn't get anything.. so we need to craete it ourselves.
+    this.#imageElement = document.createElement("img");
+    this.#imageElement.src = in_image;
+    }
+    else {
+      console.log("gREAT!  file already loaded");
+      this.#image = this.#imageElement.src;
+      console.log("iamge is: " + this.#image);
+    }
+
+    this.#scale = in_scale;
+    this.#parent = in_parent;
+  }
+
+  get element() {
+    return this.#canvasElement;
+  }
+
+  set zIndex(in_depth) {
+    this.#zindex = in_depth;
+  }
+  set left(in_img) {
+    this.#left = in_img;
+    this.#leftImage = FileLoader.Instance().getFile(in_img);
+  }
+  set bottom(in_img) {
+    this.#bottom = in_img;
+    this.#bottomImage = FileLoader.Instance().getFile(in_img);
+  }
+  set right(in_img) {
+    this.#right = in_img;
+    this.#rightImage = FileLoader.Instance().getFile(in_img);
+  }
+  set top(in_img) {
+    this.#top = in_img;
+    this.#topImage = FileLoader.Instance().getFile(in_img);
+  }
+
+  createCanvas() {
+    this.#canvasElement = document.createElement("div");
+    this.#canvasElement.style.position = "relative;"
+    this.#canvasElement.style.width = this.#parent.clientWidth + "px";
+    this.#canvasElement.style.height = this.#parent.clientHeight + "px";
+    this.#canvasElement.style.overflow = "hidden";
+    this.#canvasElement.style.zIndex = this.#zindex;
+
+    //oookay.  we need to know our image size, or image scale, and our parent size.  We then calc how many of our
+    //  image we need, and voala!  viola?
+
+    const tmp_img = new Image();
+    //const tmp_image = URL.createObjectURL(this.#image);
+    tmp_img.src = this.#image;
+    /*
+    tmp_img.onload = function() {
+      URL.revokeObjectURL(this.src);
+    };
+    */
+
+    console.log(this.#parent.clientWidth + ", " + this.#imageElement.naturalWidth + ", " + this.#scale);
+
+    const tmp_horizontal = this.#parent.clientWidth / (this.#imageElement.naturalWidth * this.#scale);
+    const tmp_vertical = this.#parent.clientHeight / (this.#imageElement.naturalHeight * this.#scale);
+    const tmp_h_rem = this.#parent.clientWidth - (this.#imageElement.naturalWidth * this.#scale) * Math.floor(tmp_horizontal);
+    const tmp_v_rem = this.#parent.clientHeight - (this.#imageElement.naturalHeight * this.#scale) * Math.floor(tmp_vertical);
+    //aand now I need to add this many...
+
+    console.log(tmp_horizontal + " x " + tmp_vertical + " rem: " + tmp_h_rem + " x " + tmp_v_rem);
+
+    if (1 < 4) {
+      //return
+    }
+
+    const tmp_size = this.#imageElement.naturalWidth * this.#scale;
+    const tmp_bottom_edge_size = this.#bottomImage.naturalHeight;
+    //const tmp_bottom_edge_size = this.#bottomImage.naturalHeight * this.#scale;
+
+    let tmp_element;
+    for (let i=0; i < tmp_vertical; i++) {
+      //create one for each horizontal (and if this is the last one, create the partial)
+      for (let j=0; j < tmp_horizontal; j++) {
+        //easy...
+        tmp_element = document.createElement("img");
+        tmp_element.src = this.#image;
+        tmp_element.style.height = tmp_size + "px";
+        tmp_element.style.position = "absolute";
+        tmp_element.style.top = (i*tmp_size) + "px";
+        tmp_element.style.left = (j*tmp_size) + "px";
+        console.log("natural size is " + tmp_element.naturalWidth);
+        this.#canvasElement.appendChild(tmp_element);
+
+        //if this is the left edge (j = 0), then we also need to put our edge graphic
+        if (j == 0) {
+          tmp_element = document.createElement("img");
+          tmp_element.src = this.#leftImage.src;
+          tmp_element.style.height = tmp_size + "px";
+          tmp_element.style.width = tmp_bottom_edge_size + "px";
+          tmp_element.style.position = "absolute";
+          tmp_element.style.top = (i*tmp_size) + "px";
+          tmp_element.style.left = (j*tmp_size) + "px";
+          this.#canvasElement.appendChild(tmp_element);
+        }
+        //if this is the top edge (i = 0), then we need to put our top edge graphic..
+        if (i == 0) {
+          tmp_element = document.createElement("img");
+          tmp_element.src = this.#topImage.src;
+          tmp_element.style.height = tmp_bottom_edge_size + "px";
+          tmp_element.style.width = tmp_size + "px";
+          tmp_element.style.position = "absolute";
+          tmp_element.style.top = (i*tmp_size) + "px";
+          tmp_element.style.left = (j*tmp_size) + "px";
+          this.#canvasElement.appendChild(tmp_element);
+        }
+        //if this is the bottom edge, we need to put the bottom edge graphic..
+        if (i+1 >= tmp_vertical) {
+          tmp_element = document.createElement("img");
+          tmp_element.src = this.#bottomImage.src;
+          tmp_element.style.width = tmp_size + "px";
+          tmp_element.style.height = tmp_bottom_edge_size + "px";
+          tmp_element.style.position = "absolute";
+          tmp_element.style.top = (this.#parent.clientHeight - tmp_bottom_edge_size) + "px";
+          tmp_element.style.left = (j*tmp_size) + "px";
+          this.#canvasElement.appendChild(tmp_element);          
+        }
+        //if this is the right edge, we need to put the right edge graphic..
+        if (j+1 >= tmp_horizontal) {
+          tmp_element = document.createElement("img");
+          tmp_element.src = this.#rightImage.src;
+          tmp_element.style.width = tmp_bottom_edge_size + "px";
+          tmp_element.style.height = tmp_size + "px";
+          tmp_element.style.position = "absolute";
+          tmp_element.style.top = (i*tmp_size) + "px";
+          tmp_element.style.left = (this.#parent.clientWidth - tmp_bottom_edge_size) + "px";
+          this.#canvasElement.appendChild(tmp_element);          
+        }
+      }
+
+      /*
+      if (tmp_h_rem > 0) {
+        tmp_element = document.createElement("img");
+        tmp_element.src = this.#image;
+        tmp_element.style.height = tmp_size + "px";
+        tmp_element.style.width = tmp_h_rem + "px";
+        this.#canvasElement.appendChild(tmp_element);
+      }
+      */
+    }
+
+    //now add it to the parent!
+    this.#parent.appendChild(this.#canvasElement);
+  }
+}
+
+
+//ummm..... GameWindow is where our game happens...  externally, I'm telling the gamewindow what z-index each thing 
+//  needs to be on.  However, the pasture horizon is a point where some objects change z-index...
+//I'm going to need to give a distance to whatever handles the horizon, etc, and then that needs to change the z-index 
+//  as stuff appears in front and behind it.  Mean.  GameWindow does NOT handle the z-index!  Each element, or something,
+//  handles their own index.  There ya go.
+
 //---===---===---===---
 //  Start here!
 //---===---===---===---
@@ -685,3 +1114,43 @@ InputHandler.Instance().draw = true;
 //start the game loop!!  (it repeats itself)
 game.targetFPS = 1;
 game.gameLoop();
+
+//how do we get the screen width and height??
+let tmp_screen_width = document.body.clientWidth;
+let tmp_screen_height = document.body.clientHeight;
+//alert("h x w: " + tmp_screen_height + " x " + tmp_screen_width);
+
+let gameWindow = new GameWindow();
+
+//here's our canvas overlay..
+//let tmp_canvas = document.createElement("img");
+//tmp_canvas.src = "assets/canvas_36tpi_2x2_288.png";
+//gameWindow.addElement(tmp_canvas);
+
+//const tmp_canvas = new CanvasOverlay("assets/canvas_36tpi_2x2_288.png", 0.5, gameWindow.windowElement);
+//tmp_canvas.createCanvas();
+
+FileLoader.Instance().loadFile("assets/canvas_36tpi_2x2_288.png", "img", imagesLoaded);
+FileLoader.Instance().loadFile("assets/canvas_edge_v_light.png", "img", imagesLoaded);
+FileLoader.Instance().loadFile("assets/canvas_edge_h_light.png", "img", imagesLoaded);
+FileLoader.Instance().loadFile("assets/canvas_edge_v_right.png", "img", imagesLoaded);
+FileLoader.Instance().loadFile("assets/canvas_edge_h_top.png", "img", imagesLoaded);
+FileLoader.Instance().okToContinue = true;
+console.log("ready ready");
+
+//let success = FileLoader.Instance().waitUntilComplete();
+//console.log("success" + success);
+
+//let tmp_tries = 0;
+//while (tmp_tries )
+
+function imagesLoaded() {
+  console.log("OMG SOMETHING WORKS!");
+  const tmp_canvas = new CanvasOverlay("assets/canvas_36tpi_2x2_288.png", .5, gameWindow.windowElement);
+  tmp_canvas.zIndex = 10;
+  tmp_canvas.left = "assets/canvas_edge_v_light.png";
+  tmp_canvas.bottom = "assets/canvas_edge_h_light.png";
+  tmp_canvas.right = "assets/canvas_edge_v_right.png";
+  tmp_canvas.top = "assets/canvas_edge_h_top.png";
+  tmp_canvas.createCanvas();
+}
