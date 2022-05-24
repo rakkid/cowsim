@@ -760,6 +760,37 @@ class GameObject {
   }
 }
 
+//I need to create something that handles depth and converts it into z-index and height... and I guess
+//  horizontal movement in the distance.
+//  a) pasture / grass / ground area that is in front of our "horizon"  - also need a height of our horizon
+//  b) the "back" pasture/grass/ground area (behind the horizon)
+//  c) far pastures (imagine some rolling hills) .. some dots of cows, tractor, cowboy in the distance..
+//       maybe we could set it up so we can see the back fence on a far hill..
+//  d) woods / mountains, far mountains (and clouds) are 3 other distances.
+//SO..  let's say we give everything a real x,y,z location, and we then translate those..
+//  umm...  let's say our cow stands at 20.  pasture horizon is at 0. so anything on the horizon is 20 away
+//    from cow.  Cow walks toward horizon, those things get closer.
+//  pasture size...  this will start at maybee.. umm..  40x40 ?  eventually get to ... 400x400?
+//  back pasture is just hidden until stuff gets close...  40 away?  We can start with that..  and things 
+//    behind the horizon will scale down.
+//  far pasture - umm... 300 away?  300 ...  means we can see 100 of the last of our pasture..  when we 
+//    get to distance of 400, then there's still 300 away.  plus maybe 150??  so 300-450 is visible..
+//    So when we walk to 400, then that's 700 - 850 is visible.  HOWEVER, I don't want the back pasture
+//    to move at alll until maybe we walk to a distance of 100 or 120??  Soo, it's really only 240 away.
+//  Anyway... beyond that will be like somewhere around 800 to 1000...
+//  Anything beyond 1000 is FIXED depth.  It won't come closer.  But it will move left/right a bit??
+
+//Umm..  Let's create the farfar ones first, so I can get a better concept of how to do scaled left/right 
+//  movement..
+//we will need a movement ratio for left right.  maybe another for up/down???
+//  for every 10 that the camera (or cow) moves, move 1.  that'll be 0.1 move ratio.
+class FarDepth {
+  #baseDepth;  //z index for this guy's div.
+  #moveRatioH;
+  #moveRatioV;
+  #relHeight;  //where the bottom edge will be on the screen.
+}
+
 //Here's the game window...?  OK, making it so I can use multiple of these, and they will be tied to the 
 //  size of a parent..
 //  we'll use 2 ways...  borderRatio and parentRatio.
@@ -1241,6 +1272,38 @@ class CanvasOverlay {
   }
 }
 
+//umm...should it just be a function?
+function hillLayerBuilder() {
+  //Well.... we pick a couple random hills, and then place them.  Not much to it.
+  const totalHills = 4;
+  const colors = ["g"];
+
+  let tmp_hills_to_pick = 2;
+  let tmp_color = colors[0];
+
+  //now we pick however many..
+  let tmp_hills = [];
+  let tmp_num;
+  for (let i=0; i<tmp_hills_to_pick; i++) {
+    tmp_num = Math.floor((Math.random() * totalHills) + 1);
+    while (totalHills > tmp_hills_to_pick && tmp_hills.findIndex(val => val === tmp_num) !== -1) {
+      tmp_num += 1;
+      if (tmp_num > totalHills) {
+        tmp_num = 0;
+      }
+    }
+    tmp_hills.push(tmp_num);
+  }
+
+  const hillList = [];
+
+  for (let i=0; i<tmp_hills.length; i++) {  
+    hillList.push("assets/hill/hill_" + (tmp_hills[i] < 10 ? "0" : "") + tmp_hills[i] + "_" + tmp_color + ".png");
+  }
+
+  return hillList;
+}
+
 
 //ummm..... GameWindow is where our game happens...  externally, I'm telling the gamewindow what z-index each thing 
 //  needs to be on.  However, the pasture horizon is a point where some objects change z-index...
@@ -1274,7 +1337,7 @@ let tmp_screen_width = document.body.clientWidth;
 let tmp_screen_height = document.body.clientHeight;
 //alert("h x w: " + tmp_screen_height + " x " + tmp_screen_width);
 
-let gameWindow = new GameWindow(document.documentElement, 0, 0.18, 12/8);
+let gameWindow = new GameWindow(document.documentElement, 0, 0.18, 12/9);
 gameWindow.buildWindow();
 let charWindow = new GameWindow(gameWindow.windowElement, 0.3, 0, 3/2);
 //let adWindow = new GameWindow(gameWindow.windowElement, 0.25, 0, 3/2);
@@ -1303,6 +1366,8 @@ console.log("ready ready");
 //let success = FileLoader.Instance().waitUntilComplete();
 //console.log("success" + success);
 
+//TODO: build some visual loading screen / bar ... as we load the files?
+
 //let tmp_tries = 0;
 //while (tmp_tries )
 
@@ -1324,6 +1389,8 @@ function imagesLoaded() {
   tmp_char_canvas.top = "assets/canvas_edge_h_top.png";
   tmp_char_canvas.createCanvas();
 
-
+  let tmp_hills = hillLayerBuilder();
+  console.log("picked hills:");
+  tmp_hills.forEach(img => console.log(img));
 
 }
