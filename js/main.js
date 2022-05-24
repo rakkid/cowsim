@@ -665,6 +665,101 @@ class InputHandler {
   //all our accessors to see what inputs were inputted!
 }
 
+//class for animated actions of objects?  I dunoo.....
+class Animation {
+  #name;
+  #numFrames;
+  #frameImgs;
+  #timeLength;
+  #frameTimes;  //ratio of how long each frame lasts over the whole length...
+}
+
+//base class for game objects...  who knows!
+class GameObject {
+  static LOC_CC = 1;  //center center
+  static LOC_BC = 2;  //bottom center
+  static LOC_BL = 3;  //bottom left
+  static LOC_TL = 4;  //top left
+  //is location CENTER of image?
+  #location;
+  #locationPoint;
+  #zDepth;
+
+  //do I wrap this guy in a div?  Or just have a floating image?
+  #element;
+
+  //how am I going to do size....?  size vs image size??
+  #sizeScale;
+  //this is the actual size of our img/div holding it.  calc'd from img size and scale.
+  #size;
+  //this is the top left, calculated from size, location, and loc point
+  #topLeft;
+
+  #img;
+  #baseAnimation;
+  #animationMap;
+
+  constructor() {
+    this.#location = [0, 0];
+    this.#locationPoint = GameObject.LOC_BL;
+    this.#animationMap = new Map();
+  }
+
+  begin() {}
+  update() {}
+  delete() {}
+
+  set location(in_value) {
+    if (! in_value instanceof Array) {
+      throw "GameObject.location must be an array!";
+    }
+    this.#location = in_value;
+  }
+  get location() {
+    return this.#location;
+  }
+  set locationPoint(in_value) {
+    if (in_value < 0 || in_value > 4) {
+      throw "GameObject.locationPoint is invalid!!";
+    }
+    this.#locationPoint = in_value;
+  }
+  get location() {
+    return this.#location;
+  }
+  getLocationBox() {
+    //this returns this guy's box...
+    return this.#element.getBoundingClientRect();
+  }
+  set zDepth(in_value) {
+    this.#zDepth = in_value;
+  }
+  get zDepth() {
+    return this.#zDepth;
+  }
+  set sizeScale(in_value) {
+    if (in_value < 0) {
+      throw "GameObject.sizeScale cannot be negative!!";
+    }
+    this.#locationPoint = in_value;
+  }
+  set image(in_value) {
+    this.#img = in_value;
+  }
+  set baseAnimation(in_value) {
+    if (! in_value instanceof Animation) {
+      throw "GameObject.baseAnimation must be an Animation!!";
+    }
+    this.#baseAnimation = in_value;
+  }
+  addAnimation(in_value) {
+    if (! in_value instanceof Animation) {
+      throw "GameObject.addAnimation must receive an Animation!!";
+    }
+    this.#animationMap.set(in_value.name, in_value);
+  }
+}
+
 //Here's the game window...?  OK, making it so I can use multiple of these, and they will be tied to the 
 //  size of a parent..
 //  we'll use 2 ways...  borderRatio and parentRatio.
