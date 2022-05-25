@@ -686,14 +686,44 @@ class Location {
   }
 
   get x() {
-    return x;
+    return this.#x;
   }
   get y() {
-    return y;
+    return this.#y;
   }
   get z() {
-    return z;
+    return this.#z;
   }
+}
+
+//should I allow us to 
+class Size {
+  #width;
+  #height;
+  constructor(in_width, in_height) {
+    if (in_width < 0 || in_height < 0) {
+      throw "Size object cannot have negative size!! (w x h): (" + in_width + " x " + in_height + ")";
+    }
+    //let's round these...
+    this.#width = Math.round(in_width);
+    this.#height = Math.round(in_height);
+  }
+
+  get width() {
+    return this.#width;
+  }
+  get height() {
+    return this.#height;
+  }
+  //should I allow these??  Or require new every time?
+  /*
+  set width(in_value) {
+    this.#width = in_value;
+  }
+  set height(in_value) {
+    this.#height = in_value;
+  }
+  */
 }
 
 //base class for game objects...  who knows!
@@ -705,11 +735,14 @@ class GameObject {
   //is location CENTER of image?
   #location;
   #locationPoint;
-  #zDepth;
 
   //do I wrap this guy in a div?  Or just have a floating image?
   #element;
 
+  #sceneLocation;
+  #xyOffset;
+
+  #naturalSize;
   //how am I going to do size....?  size vs image size??
   #sizeScale;
   //this is the actual size of our img/div holding it.  calc'd from img size and scale.
@@ -745,6 +778,43 @@ class GameObject {
     this.#locChange = false;
   }
 
+  #calcOffset() {
+    let tmp_x_offset = 0;
+    let tmp_y_offset = 0;
+
+    if (this.#locationPoint === GameObject.LOC_CC) {
+      //center-center:
+      //  width is - 1/2 width
+      //  height is - 1/2 height
+      tmp_x_offset = Math.round(-0.5 * this.size.width);
+      tmp_y_offset = Math.round(-0.5 * this.size.height);
+    }
+    else if (this.#locationPoint === GameObject.LOC_BC) {
+      //bottom-center:
+      //  width is - 1/2 width
+      //  height is no change
+      tmp_x_offset = Math.round(-0.5 * this.size.width);
+      tmp_y_offset = 0;
+    }
+    else if (this.#locationPoint === GameObject.LOC_CC) {
+      //bottom-left:
+      //  width is 0
+      //  height is 0
+      tmp_x_offset = 0;
+      tmp_y_offset = 0;
+    }
+    else if (this.#locationPoint === GameObject.LOC_CC) {
+      //top-left:
+      //  width is 0
+      //  height is -  height
+      tmp_x_offset = 0;
+      tmp_y_offset = -1 * this.size.height;
+    }
+
+    //and save our offset..
+    this.#xyOffset = new Location(tmp_x_offset, tmp_y_offset, 0);
+  }
+
   set location(in_value) {
     if (! in_value instanceof Location) {
       throw "GameObject.location must be a Location object!";
@@ -761,29 +831,57 @@ class GameObject {
     }
     this.#locationPoint = in_value;
   }
-  get location() {
-    return this.#location;
+  get locChange() {
+    return this.#locChange;
   }
   getLocationBox() {
     //this returns this guy's box...
     return this.#element.getBoundingClientRect();
   }
-  //I think I'm just going to incorporate this into Location.
-  set zDepth(in_value) {
-    this.#locChange = true;
-    this.#zDepth = in_value;
-  }
-  get zDepth() {
-    return this.#zDepth;
-  }
   set sizeScale(in_value) {
     if (in_value < 0) {
       throw "GameObject.sizeScale cannot be negative!!";
     }
-    this.#locationPoint = in_value;
+    if (this.#element == null) {
+      //element was never created??  That means they never gave us an image...  Not good!!
+      throw "GameObject.image but be assigned before assigning sizeScale!";
+    }
+
+    //OK!  We've been told our size scale!  We need to use this with our natural size and set our
+    //  size!
+    //This value is coming from our parent scene layer, which combines its zDepth scale with the
+    //  scaling of the gameWindow!  So we don't need to know anything special here!
+    if (this.#sizeScale === in_value) {
+      //size scale is already what we want, so we are good!
+      return;
+    }
+    this.#sizeScale = in_value;
+    this.#size = new Size(in_value * this.#naturalSize.width, in_value * this.#naturalSize.height);
+    //TODO:  ALTERNATELY, I can create a new Size in the constructor, and just update the size here..
+    //  then I'm not creating lots of new Size objects...  buuut, I dunno.  Defeats the purpose of
+    //  accidently messing up the size object?  It does'nt really matter....
+
+    //also create our x and y offsets to get to BOTTOM LEFT of this image!
+    this.#calcOffset();
+
+    //TODO:  Have different rendered images based on size... if our size goes below a threshold, swap
+    //  images to the smaller (or larger) size?
+
+    //also update our object??
+    this.#element.style.width = this.#size.width + "px";
+    this.#element.style.height = this.#size.height + "px";
   }
-  set image(in_value) {
+  setImage(in_value, in_loaded) {
     this.#img = in_value;
+
+    this.#naturalSize = new Size(in_loaded.naturalWidth, in_loaded.naturalHeight);
+
+    //aand... build our element if need be??
+    if (this.#element == null) {
+      this.#element = document.createElement("img");
+      this.#element.src = in_loaded.src;
+      this.#element.classList.add("sceneElement");
+    }
   }
   set baseAnimation(in_value) {
     if (! in_value instanceof Animation) {
@@ -796,6 +894,29 @@ class GameObject {
       throw "GameObject.addAnimation must receive an Animation!!";
     }
     this.#animationMap.set(in_value.name, in_value);
+  }
+  set sceneLocation(in_value) {
+    if (! in_value instanceof Location) {
+      throw "GameObject.sceneLocation must be a Location object!";
+    }
+    this.#sceneLocation = in_value;
+
+    //and now update our location??  this is absolute locations within our parent..
+    this.#element.style.zIndex = this.#sceneLocation.z;
+    //now set the location to our element!  We do bottom left!  (x and y offsets are already calc'd)
+    console.log("HILL LEFT IS " + (this.#sceneLocation.x + this.#xyOffset.x));
+    this.#element.style.left = Math.round(this.#sceneLocation.x + this.#xyOffset.x) + "px";
+    this.#element.style.bottom = Math.round(this.#sceneLocation.y + this.#xyOffset.y) + "px";
+  }
+
+  get size() {
+    return this.#size;
+  }
+  get element() {
+    return this.#element;
+  }
+  get naturalSize() {
+    return this.#naturalSize;
   }
 }
 
@@ -844,21 +965,27 @@ class SceneLayer {
     this.#element = document.createElement("div");
     this.#element.style.zIndex = this.#baseDepth;
     this.#element.classList.add("sceneLayer");
+    this.#element.style.width = in_parent_window.windowElement.clientWidth + "px";
+    this.#element.style.height = in_parent_window.windowElement.clientHeight + "px";
+
+    //aand add ourself to our parent??
+    in_parent_window.addScene(this.#element);
   }
 
   addObject(in_game_object) {
     //okayyyy!  New game object in our windowww!  It has a location... we need to translate that location to
     //  OUR scene!  Trickyyyy
 
-    gameObject.push(in_game_object);
+    this.#gameObjects.push(in_game_object);
+    this.#element.appendChild(in_game_object.element);
   }
 
   //this goes through each gameObject and checks if we need to update the object's visual position..
-  updateScene() {
+  update() {
 
     let deletedObjs = [];
 
-    gameObjects.forEach((vv_object, vv_index, vv_array) => {
+    this.#gameObjects.forEach((vv_object, vv_index, vv_array) => {
       //if it's deleted, BYE!
       if (vv_object.deleted) {
         deletedObjs.push(vv_index);
@@ -871,13 +998,27 @@ class SceneLayer {
         //again, what do we do with this one??  TODO
       }
       //if the scene view changed OR the gameObject's location changed, then we need to update!
-      else if (parentWindow.viewChange() || vv_object.locChange()) {
+      else if (this.#parentWindow.viewChange || vv_object.locChange) {
+        let tmp_size_scale = this.#parentWindow.windowScale;
+        let tmp_x = 0;
+        let tmp_y = 0;
+        let tmp_z = 0;
+
+        tmp_x = vv_object.location.x;
+        tmp_y = vv_object.location.y;
+        tmp_z = vv_object.location.z;
         //check if its out of view??  Maybe move those to a different gameObject list?? well... we'd need to
         //  check if its back in view, anyway, sooo maybe not..
 
         //if it WAS out of view, and is now in view, we need to add it back to our element.
 
         //if it WAS in view, and is now out of view, we need to remove it from our element.
+
+        //aaand give it its new infoz!
+        //first give it size scale...
+        vv_object.sizeScale = tmp_size_scale;
+        //now we can give it location.  it takes care of putting these numbers to its element.
+        vv_object.sceneLocation = new Location(tmp_x, tmp_y, tmp_z);
       }
       //else we don't need to update this guy.....
     });
@@ -912,8 +1053,11 @@ class GameWindow {
 
   #topLeftLoc = [0, 0];
 
+  #viewChange;
+
   //maybe I don't even need a list of elements..?  Unless this guy determines what is and ISN'T visable..
   #elements = [];
+  #scenes = [];
 
   #bodyWidth;
   #bodyHeight;
@@ -1038,6 +1182,12 @@ class GameWindow {
     this.#windowElement.removeChild(in_element);
   }
 
+  //This adds a scene.  The scene handles its own scaling (by checking this guys scaling)
+  addScene(in_scene) {
+    this.#scenes.push(in_scene);
+    this.#windowElement.appendChild(in_scene);
+  }
+
   //I guess each element can disable itself, if it's not just gone.
 
   get windowElement() {
@@ -1051,6 +1201,12 @@ class GameWindow {
   }
   get size() {
     return { width: this.#width, height: this.#height };
+  }
+  get windowScale() {
+    return this.#windowScale;
+  }
+  get viewChange() {
+    return this.#viewChange;
   }
 }
 
@@ -1411,8 +1567,9 @@ class CanvasOverlay {
   }
 }
 
+const hillList = [];
 //umm...should it just be a function?
-function hillLayerBuilder() {
+function hillLayerBuilder(in_window) {
   //Well.... we pick a couple random hills, and then place them.  Not much to it.
   const totalHills = 4;
   const colors = ["g"];
@@ -1437,13 +1594,33 @@ function hillLayerBuilder() {
     tmp_hills.push(tmp_num);
   }
 
-  const hillList = [];
-
   for (let i=0; i<tmp_hills.length; i++) {  
     hillList.push("assets/hill/hill_" + (tmp_hills[i] < 10 ? "0" : "") + tmp_hills[i] + "_" + tmp_color + ".png");
   }
 
-  return hillList;
+}
+function hillLayerDisplayer(in_window) {
+  //constructor(in_depth, in_ratio_horizontal, in_ratio_vertical, in_relative_height, in_parent_window)
+  let tmp_layer = new SceneLayer(-10, 0.01, 0, 0.4, in_window);
+
+  //nooow create these objects??
+  let tmp_avg_start = in_window.windowElement.clientWidth / hillList.length;
+  let tmp_offset = in_window.windowElement.clientWidth * 0.15;
+  let tmp_range = tmp_offset * 2;
+  let tmp_horizontal = 0;
+  let tmp_count = 0;
+  hillList.forEach(vv_hill => {
+    let tmp_hill = new GameObject();
+    tmp_hill.setImage(vv_hill, FileLoader.Instance().getFile(vv_hill));
+    //for our hill locations, we want to start at the left side, and give-or-take move over width / #hills..
+    //  let's do +/- 15%?
+    tmp_horizontal = (tmp_count * tmp_avg_start) + (Math.random() * tmp_range) - tmp_offset;
+    tmp_hill.location = new Location(tmp_horizontal, 0, 0);
+    tmp_layer.addObject(tmp_hill);
+    tmp_count++;
+  });
+
+  return tmp_layer;
 }
 
 
@@ -1512,6 +1689,8 @@ PreloadHandler.Instance().addFile("assets/canvas_edge_v_light.png");
 PreloadHandler.Instance().addFile("assets/canvas_edge_h_light.png");
 PreloadHandler.Instance().addFile("assets/canvas_edge_v_right.png");
 PreloadHandler.Instance().addFile("assets/canvas_edge_h_top.png");
+hillLayerBuilder();
+hillList.forEach(vv_hill => PreloadHandler.Instance().addFile(vv_hill));
 PreloadHandler.Instance().loadAll(imagesLoaded);
 console.log("ready ready");
 
@@ -1541,8 +1720,9 @@ function imagesLoaded() {
   tmp_char_canvas.top = "assets/canvas_edge_h_top.png";
   tmp_char_canvas.createCanvas();
 
-  let tmp_hills = hillLayerBuilder();
-  console.log("picked hills:");
-  tmp_hills.forEach(vv_img => console.log(vv_img));
+  let tmp_hill_scene = hillLayerDisplayer(gameWindow);
+  //console.log("picked hills:");
+  //tmp_hills.forEach(vv_img => console.log(vv_img));
+  tmp_hill_scene.update();
 
 }

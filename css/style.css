@@ -59,10 +59,12 @@ footer {
 }
 
 .sceneLayer {
-  position: relative;
+  position: absolute;
+  left: 0px;
+  top: 0px;
   overflow: hidden;
 }
 
 .sceneElement {
-  position: relative;
+  position: absolute;
 }
