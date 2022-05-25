@@ -57,3 +57,12 @@ footer {
   overflow: hidden;
   text-align: right;
 }
+
+.sceneLayer {
+  position: relative;
+  overflow: hidden;
+}
+
+.sceneElement {
+  position: relative;
+}

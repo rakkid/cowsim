@@ -424,13 +424,13 @@ class InputHandler {
       //     c) somehow the keyup event registered before the keydown event??!  (is that possible??) - in this case, we 
       //          don't need to do anything..
       //look for it in the completed list..
-      const tmp_pressed_index = this.#completed.findIndex(cur => cur.type === InputAction.TYPE_KEY && cur.name === inn_event.code);
+      const tmp_pressed_index = this.#completed.findIndex(vv_cur => vv_cur.type === InputAction.TYPE_KEY && vv_cur.name === inn_event.code);
       if (tmp_pressed_index === -1) {
         //it wasn't in the completed list!  Now we can see if it's in current list!
         //  a) it's not there - this is expected, and we just create it and add it.
         //  b) it's there - this means that the system is sending us MORE keydowns, while we're really jsut holding
         //       a key down...
-        tmp_pressed = this.#current.find(cur => cur.type == InputAction.TYPE_KEY && cur.name == inn_event.code);
+        tmp_pressed = this.#current.find(vv_cur => vv_cur.type == InputAction.TYPE_KEY && vv_cur.name == inn_event.code);
         if (tmp_pressed) {
           //we found it!  We can just return...
           return;
@@ -490,13 +490,13 @@ class InputHandler {
       let tmp_pressed = null;
 
       //let's look for the key..
-      const tmp_pressed_index = this.#current.findIndex(cur => cur.type === InputAction.TYPE_KEY && cur.name === inn_event.code);
+      const tmp_pressed_index = this.#current.findIndex(vv_cur => vv_cur.type === InputAction.TYPE_KEY && vv_cur.name === inn_event.code);
 
       if (tmp_pressed_index === -1) {
         //it wasn't found!  Weird, but OK.  Let's see if it exists in completed..  we'll either need to update that, or 
         //  build a new pressed..
         //check the completed guy for it...
-        tmp_pressed = this.#completed.find(cur => cur.type === InputAction.TYPE_KEY && cur.name === inn_event.code);
+        tmp_pressed = this.#completed.find(vv_cur => vv_cur.type === InputAction.TYPE_KEY && vv_cur.name === inn_event.code);
         if (tmp_pressed) {
           //okay!  It's there...  we need to update it...
           //first save it as draw_element (for passing to draw method.. so draw can find this guy)
@@ -674,6 +674,28 @@ class Animation {
   #frameTimes;  //ratio of how long each frame lasts over the whole length...
 }
 
+class Location {
+  #x;
+  #y;
+  #z;
+
+  constructor(in_x, in_y, in_z) {
+    this.#x = in_x;
+    this.#y = in_y;
+    this.#z = in_z;
+  }
+
+  get x() {
+    return x;
+  }
+  get y() {
+    return y;
+  }
+  get z() {
+    return z;
+  }
+}
+
 //base class for game objects...  who knows!
 class GameObject {
   static LOC_CC = 1;  //center center
@@ -699,20 +721,35 @@ class GameObject {
   #baseAnimation;
   #animationMap;
 
+  #locChange;
+
+  #hidden;
+  #disabled;
+  #deleted;
+
   constructor() {
-    this.#location = [0, 0];
+    this.#location = new Location(0,0,0);
     this.#locationPoint = GameObject.LOC_BL;
     this.#animationMap = new Map();
+    this.#locChange = true;  //it needs to be drawn initially...
+    this.#hidden = false;
+    this.#disabled = false;
+    this.#deleted = false;
   }
 
   begin() {}
   update() {}
   delete() {}
 
+  resetLocChange() {
+    this.#locChange = false;
+  }
+
   set location(in_value) {
-    if (! in_value instanceof Array) {
-      throw "GameObject.location must be an array!";
+    if (! in_value instanceof Location) {
+      throw "GameObject.location must be a Location object!";
     }
+    this.#locChange = true;
     this.#location = in_value;
   }
   get location() {
@@ -731,7 +768,9 @@ class GameObject {
     //this returns this guy's box...
     return this.#element.getBoundingClientRect();
   }
+  //I think I'm just going to incorporate this into Location.
   set zDepth(in_value) {
+    this.#locChange = true;
     this.#zDepth = in_value;
   }
   get zDepth() {
@@ -784,11 +823,72 @@ class GameObject {
 //  movement..
 //we will need a movement ratio for left right.  maybe another for up/down???
 //  for every 10 that the camera (or cow) moves, move 1.  that'll be 0.1 move ratio.
-class FarDepth {
+class SceneLayer {
   #baseDepth;  //z index for this guy's div.
   #moveRatioH;
   #moveRatioV;
   #relHeight;  //where the bottom edge will be on the screen.
+  #parentWindow
+
+  #element
+  #gameObjects;  //is there a best way to have these dudes sorted?  I think I once read about handling collisions..
+
+  constructor(in_depth, in_ratio_horizontal, in_ratio_vertical, in_relative_height, in_parent_window) {
+    this.#baseDepth = in_depth;
+    this.#moveRatioH = in_ratio_horizontal;
+    this.#moveRatioV = in_ratio_vertical;
+    this.#relHeight = in_relative_height;
+    this.#parentWindow = in_parent_window;
+
+    this.#gameObjects = [];
+    this.#element = document.createElement("div");
+    this.#element.style.zIndex = this.#baseDepth;
+    this.#element.classList.add("sceneLayer");
+  }
+
+  addObject(in_game_object) {
+    //okayyyy!  New game object in our windowww!  It has a location... we need to translate that location to
+    //  OUR scene!  Trickyyyy
+
+    gameObject.push(in_game_object);
+  }
+
+  //this goes through each gameObject and checks if we need to update the object's visual position..
+  updateScene() {
+
+    let deletedObjs = [];
+
+    gameObjects.forEach((vv_object, vv_index, vv_array) => {
+      //if it's deleted, BYE!
+      if (vv_object.deleted) {
+        deletedObjs.push(vv_index);
+      }
+      else if (vv_object.hidden) {
+        //hide it!?  Maybe it's already hidden..?  just remove it from view?  Hmm... how best to do this one..
+        //  maybe in the gameObject.   TODO
+      }
+      else if (vv_object.disabled) {
+        //again, what do we do with this one??  TODO
+      }
+      //if the scene view changed OR the gameObject's location changed, then we need to update!
+      else if (parentWindow.viewChange() || vv_object.locChange()) {
+        //check if its out of view??  Maybe move those to a different gameObject list?? well... we'd need to
+        //  check if its back in view, anyway, sooo maybe not..
+
+        //if it WAS out of view, and is now in view, we need to add it back to our element.
+
+        //if it WAS in view, and is now out of view, we need to remove it from our element.
+      }
+      //else we don't need to update this guy.....
+    });
+
+    //if there are any deleted, we need to remove them!  go backwards through our deletedObj list.
+    for (let i=deletedObjs.length-1; i >= 0; i--) {
+      gameObjects.splice(deletedObjs[i], 1);
+    }
+
+  }
+
 }
 
 //Here's the game window...?  OK, making it so I can use multiple of these, and they will be tied to the 
@@ -1053,9 +1153,9 @@ class FileLoader {
       }
     }
 
-    const myPromise = new Promise((resolve) => {
+    const myPromise = new Promise((vv_resolve) => {
       setTimeout(() => {
-        resolve();
+        vv_resolve();
       }, 500);
     })
   }
@@ -1071,15 +1171,15 @@ class FileLoader {
       }
     }
 
-    in_promise.then(completed => {
-      if (completed) {
+    in_promise.then(vv_completed => {
+      if (vv_completed) {
         imagesLoaded();
       }
       else {
         //create a new promise
-        const myPromise = new Promise((resolve) => {
+        const myPromise = new Promise((vv_resolve) => {
           setTimeout(() => {
-            resolve();
+            vv_resolve();
           }, 500);
         });
       }
@@ -1090,6 +1190,45 @@ class FileLoader {
   getFile(in_name) {
     console.log("map size: " + this.#fileMap.size + "..  " + this.#elementToFileMap.get(this.#fileMap.get(in_name)));
     return this.#fileMap.get(in_name);
+  }
+}
+
+//This guy goes along with our FileLoader... we can add images to this guy and it'll load them all when we are ready.
+class PreloadHandler {
+  static #instance = null;
+  #fileList;
+  #fileType = "img"
+
+  constructor() {
+    if (PreloadHandler.#instance != null) {
+      throw "PreloadHandler is a Singleton!  Use PreloadHandler.Instance()."
+    }
+    this.#fileList = [];
+  }
+
+  static Instance() {
+    if (PreloadHandler.#instance != null) {
+      return PreloadHandler.#instance;
+    }
+    else {
+      PreloadHandler.#instance = new PreloadHandler();
+      return PreloadHandler.#instance;
+    }
+  }
+
+  addFile(in_file) {
+    //do I care if it's already in there?  Might as well...
+    if (this.#fileList.findIndex(vv_file => vv_file === in_file) === -1) {
+      //great!  we don't have it!
+      this.#fileList.push(in_file);
+    }
+    //and that's it!
+  }
+
+  //aaand load them all!
+  loadAll(in_callback) {
+    this.#fileList.forEach(vv_file => FileLoader.Instance().loadFile(vv_file, this.#fileType, in_callback));
+    FileLoader.Instance().okToContinue = true;
   }
 }
 
@@ -1279,6 +1418,9 @@ function hillLayerBuilder() {
   const colors = ["g"];
 
   let tmp_hills_to_pick = 2;
+
+  //pick our color ..  will this be based on season??  let's not get ahead of myself here...  no seasons til it's
+  //  actually done first, thank you very much!
   let tmp_color = colors[0];
 
   //now we pick however many..
@@ -1286,7 +1428,7 @@ function hillLayerBuilder() {
   let tmp_num;
   for (let i=0; i<tmp_hills_to_pick; i++) {
     tmp_num = Math.floor((Math.random() * totalHills) + 1);
-    while (totalHills > tmp_hills_to_pick && tmp_hills.findIndex(val => val === tmp_num) !== -1) {
+    while (totalHills > tmp_hills_to_pick && tmp_hills.findIndex(vv_val => vv_val === tmp_num) !== -1) {
       tmp_num += 1;
       if (tmp_num > totalHills) {
         tmp_num = 0;
@@ -1355,12 +1497,22 @@ charWindow.buildWindow();
 //const tmp_canvas = new CanvasOverlay("assets/canvas_36tpi_2x2_288.png", 0.5, gameWindow.windowElement);
 //tmp_canvas.createCanvas();
 
+/*
 FileLoader.Instance().loadFile("assets/canvas_36tpi_2x2_288.png", "img", imagesLoaded);
 FileLoader.Instance().loadFile("assets/canvas_edge_v_light.png", "img", imagesLoaded);
 FileLoader.Instance().loadFile("assets/canvas_edge_h_light.png", "img", imagesLoaded);
 FileLoader.Instance().loadFile("assets/canvas_edge_v_right.png", "img", imagesLoaded);
 FileLoader.Instance().loadFile("assets/canvas_edge_h_top.png", "img", imagesLoaded);
 FileLoader.Instance().okToContinue = true;
+console.log("ready ready");
+*/
+
+PreloadHandler.Instance().addFile("assets/canvas_36tpi_2x2_288.png");
+PreloadHandler.Instance().addFile("assets/canvas_edge_v_light.png");
+PreloadHandler.Instance().addFile("assets/canvas_edge_h_light.png");
+PreloadHandler.Instance().addFile("assets/canvas_edge_v_right.png");
+PreloadHandler.Instance().addFile("assets/canvas_edge_h_top.png");
+PreloadHandler.Instance().loadAll(imagesLoaded);
 console.log("ready ready");
 
 //let success = FileLoader.Instance().waitUntilComplete();
@@ -1391,6 +1543,6 @@ function imagesLoaded() {
 
   let tmp_hills = hillLayerBuilder();
   console.log("picked hills:");
-  tmp_hills.forEach(img => console.log(img));
+  tmp_hills.forEach(vv_img => console.log(vv_img));
 
 }
