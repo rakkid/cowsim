@@ -1622,6 +1622,11 @@ function skyLayerBuild(in_window) {
 
   let tmp_layer = new SceneLayer(zIndex, 0, 0, heightRatio, in_window);
 
+  let tmp_obj = new GameObject();
+  tmp_obj.setImage("assets/sky.png", FileLoader.Instance().getFile("assets/sky.png"));
+  //this guy is at the bottom..
+  tmp_obj.location = new Location(0, 0, -10);
+  tmp_layer.addStaticObject(tmp_obj);
 
   return tmp_layer;
 }
