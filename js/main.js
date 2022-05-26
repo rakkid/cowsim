@@ -1,123 +1,3 @@
-
-/*  
-let deckID = ''   // Global variable
-let origBtnText = ''
-let origImgDisplay = document.querySelector('#player1War1').style.display
-
-fetch('https://deckofcardsapi.com/api/deck/new/shuffle/?deck_count=1')  // Grab a deck
-      .then(res => res.json()) // parse response as JSON
-      .then(data => {
-        console.log(data)
-        deckID = data.deck_id  // Store Deck ID in variable
-      })
-      .catch(err => {
-          console.log(`error ${err}`)
-      });
-
-document.getElementById('btn').addEventListener('click', drawTwo)
-
-function drawTwo(){
-  const url = `https://deckofcardsapi.com/api/deck/${deckID}/draw/?count=2`  // Grabbin' two cards
-
-  document.querySelector('#player1War1').style.display = 'none'
-  document.querySelector('#player1War2').style.display = 'none'
-  document.querySelector('#player1War3').style.display = 'none'
-  document.querySelector('#player2War1').style.display = 'none'
-  document.querySelector('#player2War2').style.display = 'none'
-  document.querySelector('#player2War3').style.display = 'none'
-
-  fetch(url)
-      .then(res => res.json()) // parse response as JSON
-      .then(data => {
-        console.log(data)
-        document.querySelector('#player1').src = data.cards[0].image
-        document.querySelector('#player2').src = data.cards[1].image
-        let player1Valoo = convertToNum(data.cards[0].value)
-        let player2Valoo = convertToNum(data.cards[1].value)
-        if (player1Valoo > player2Valoo) {
-          document.querySelector('h3').innerText = 'Player 1 Won!'
-        } else if (player1Valoo < player2Valoo) {
-          document.querySelector('h3').innerText = 'Player 2 Wins!'
-        } else {
-          document.querySelector('h3').innerText = 'This. Is. WAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARRRR!!!!!!!!!!!!'
-          
-	  origBtnText = document.getElementById('btn').innerText
-          document.getElementById('btn').innerText = "WAR!!!"  // Change the button to WAR
-          document.getElementById('btn').removeEventListener('click', drawTwo)
-          document.getElementById('btn').addEventListener('click', drawWar) // Draw 8 cards        
-        }
-
-      })
-      .catch(err => {
-          console.log(`error ${err}`)
-      });
-}
-function convertToNum(val) {
-  if (val === 'ACE') {
-    return 14
-  } else if (val === 'KING') {
-    return 13
-  } else if (val === 'QUEEN') {
-    return 12
-  } else if (val === 'JACK') {
-    return 11
-  } else {
-    return Number(val)
-  }
-}
-
-
-function drawWar(){
-  const urlWar = `https://deckofcardsapi.com/api/deck/${deckID}/draw/?count=8`  // Grabbin' eight cards
-
-  document.querySelector('#player1War1').style.display = origImgDisplay
-  document.querySelector('#player1War2').style.display = origImgDisplay
-  document.querySelector('#player1War3').style.display = origImgDisplay
-  document.querySelector('#player2War1').style.display = origImgDisplay
-  document.querySelector('#player2War2').style.display = origImgDisplay
-  document.querySelector('#player2War3').style.display = origImgDisplay
-
-  fetch(urlWar)
-      .then(res => res.json()) // parse response as JSON
-      .then(data => {
-        console.log(data)
-        document.querySelector('#player1').src = data.cards[3].image
-          document.querySelector('#player1War1').src = data.cards[0].image
-          document.querySelector('#player1War2').src = data.cards[1].image
-          document.querySelector('#player1War3').src = data.cards[2].image
-        document.querySelector('#player2').src = data.cards[7].image
-          document.querySelector('#player2War1').src = data.cards[4].image
-          document.querySelector('#player2War2').src = data.cards[5].image
-          document.querySelector('#player2War3').src = data.cards[6].image
-        let player1Valoo = convertToNum(data.cards[3].value)
-        let player2Valoo = convertToNum(data.cards[7].value)
-        if (player1Valoo > player2Valoo) {
-          document.querySelector('h3').innerText = 'PLAYER 1 HAS CONQUERED!'
-          document.getElementById('btn').innerText = origBtnText  // Change the button back
-          document.getElementById('btn').removeEventListener('click', drawWar)
-          document.getElementById('btn').addEventListener('click', drawTwo) // Draw 8 cards   
-        } else if (player1Valoo < player2Valoo) {
-          document.querySelector('h3').innerText = 'PLAYER 2 PREVAILS!'
-          document.getElementById('btn').innerText = origBtnText  // Change the button to WAR
-          document.getElementById('btn').removeEventListener('click', drawWar)
-          document.getElementById('btn').addEventListener('click', drawTwo) // Draw 8 cards   
-        } else {
-          document.querySelector('h3').innerText = 'This. Is. WAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARRRR!!!!!!!!!!!! (again)'
-  
-        }
-        // Change the button back
-      })
-      .catch(err => {
-          console.log(`error ${err}`)
-      });
-}
-
-*/
-
-// Store deck to local storage
-
-
-
 //Start here..  Just start typing, or nothing's gonna get done, buddy!
 
 //what do I want to do start...?  For my game screen, I need a size, I guess..?  It can be some kind of relative size..
@@ -944,6 +824,8 @@ class GameObject {
 //  movement..
 //we will need a movement ratio for left right.  maybe another for up/down???
 //  for every 10 that the camera (or cow) moves, move 1.  that'll be 0.1 move ratio.
+//Relative height..  where lower left is..?  Since each layer is higher than the one in front of it..
+//  How best to do this.  I could do it as a ratio.  0.4 = 40% of parent..  let's give it a try..
 class SceneLayer {
   #baseDepth;  //z index for this guy's div.
   #moveRatioH;
@@ -966,7 +848,9 @@ class SceneLayer {
     this.#element.style.zIndex = this.#baseDepth;
     this.#element.classList.add("sceneLayer");
     this.#element.style.width = in_parent_window.windowElement.clientWidth + "px";
-    this.#element.style.height = in_parent_window.windowElement.clientHeight + "px";
+
+    //calc our height using relative height...  OK, that was easy.
+    this.#element.style.height = Math.round(in_parent_window.windowElement.clientHeight * in_relative_height) + "px";
 
     //aand add ourself to our parent??
     in_parent_window.addScene(this.#element);
@@ -1584,11 +1468,12 @@ function hillLayerBuilder(in_window) {
   let tmp_hills = [];
   let tmp_num;
   for (let i=0; i<tmp_hills_to_pick; i++) {
-    tmp_num = Math.floor((Math.random() * totalHills) + 1);
+    tmp_num = Math.floor((Math.random() * totalHills)) + 1;  //(add 1, since our first hill is 1, not zero)
     while (totalHills > tmp_hills_to_pick && tmp_hills.findIndex(vv_val => vv_val === tmp_num) !== -1) {
       tmp_num += 1;
       if (tmp_num > totalHills) {
-        tmp_num = 0;
+        //start back at the first one.  which is 1 (not zero)
+        tmp_num = 1;
       }
     }
     tmp_hills.push(tmp_num);
@@ -1599,9 +1484,12 @@ function hillLayerBuilder(in_window) {
   }
 
 }
+//In my little mockup, the hills were 318 px down from top edge.. (of height 900)..  318/900.
 function hillLayerDisplayer(in_window) {
+  const heightRatio = 320/900;
+
   //constructor(in_depth, in_ratio_horizontal, in_ratio_vertical, in_relative_height, in_parent_window)
-  let tmp_layer = new SceneLayer(-10, 0.01, 0, 0.4, in_window);
+  let tmp_layer = new SceneLayer(-10, 0.01, 0, heightRatio, in_window);
 
   //nooow create these objects??
   let tmp_avg_start = in_window.windowElement.clientWidth / hillList.length;
