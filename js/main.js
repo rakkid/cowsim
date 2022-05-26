@@ -18,6 +18,17 @@
 
 //
 
+const IMG_TYPE = "png";
+const HILL_OPTIONS = 4;
+const HILL_COLORS = ["g"];
+const HILL_NAME = "assets/hill/hill_"
+const GRASS_S_OPTIONS = 5;
+const GRASS_S_NAME = "assets/grass/grass_s_";
+const GRASS_L_OPTIONS = 4;
+const GRASS_L_NAME = "assets/grass/grass_l_";
+const FLOWER_OPTIONS = 4;
+const TREE_OPTIONS = 4;
+const GROUND_EFFECTS_OPTIONS = 4;
 
 class GameTime {
   #beginTime;
@@ -827,14 +838,24 @@ class GameObject {
 //Relative height..  where lower left is..?  Since each layer is higher than the one in front of it..
 //  How best to do this.  I could do it as a ratio.  0.4 = 40% of parent..  let's give it a try..
 class SceneLayer {
+  static TOP = 1;
+  static BOTTOM = 2;
+
   #baseDepth;  //z index for this guy's div.
   #moveRatioH;
   #moveRatioV;
   #relHeight;  //where the bottom edge will be on the screen.
-  #parentWindow
+  #parentWindow;
+
+  //SceneLayer needs an effective "height"...  liiike, how much is the ground, for knowing where our edge is, etc..
+  //is this my horizon line?  Do I give it an image, and be like "here is this guy's relative height (where it starts)",
+  //  and this guy is the horizon definer!  And it uses that height to figure it out..
+  #layerHeight;
+  #layerHorizonHeight;
 
   #element
   #gameObjects;  //is there a best way to have these dudes sorted?  I think I once read about handling collisions..
+  #staticGameObjects;
 
   constructor(in_depth, in_ratio_horizontal, in_ratio_vertical, in_relative_height, in_parent_window) {
     this.#baseDepth = in_depth;
@@ -844,13 +865,18 @@ class SceneLayer {
     this.#parentWindow = in_parent_window;
 
     this.#gameObjects = [];
+    this.#staticGameObjects = [];
     this.#element = document.createElement("div");
     this.#element.style.zIndex = this.#baseDepth;
     this.#element.classList.add("sceneLayer");
     this.#element.style.width = in_parent_window.windowElement.clientWidth + "px";
 
     //calc our height using relative height...  OK, that was easy.
-    this.#element.style.height = Math.round(in_parent_window.windowElement.clientHeight * in_relative_height) + "px";
+    this.#layerHeight = Math.round(in_parent_window.windowElement.clientHeight * in_relative_height);
+    //NOTE: this can be changed if "defineLayerHorizonHeight" is called later...
+    this.#layerHorizonHeight = this.#layerHeight;
+    this.#element.style.height = this.#layerHeight + "px";
+
 
     //aand add ourself to our parent??
     in_parent_window.addScene(this.#element);
@@ -861,6 +887,39 @@ class SceneLayer {
     //  OUR scene!  Trickyyyy
 
     this.#gameObjects.push(in_game_object);
+    this.#element.appendChild(in_game_object.element);
+  }
+
+  //OK... static objects do not move/change, etc...  they are just there.  Pretty much the ground and horizon edge)
+  //These guys are kept in a separate list, since they don't update, so no need to look at them in the update
+  //  method!
+  addStaticObject(in_game_object) {
+    this.#staticGameObjects.push(in_game_object);
+    //give it the right scale, and we should be good...
+    in_game_object.sizeScale = this.#parentWindow.windowScale;
+    //no scaling or changing of location for scene loc
+    in_game_object.sceneLocation = new Location(in_game_object.location.x, in_game_object.location.y, in_game_object.location.z);
+    this.#element.appendChild(in_game_object.element);
+  }
+
+  //This adds a static object to the horizon line!  The X location and Z location are kept.  We adjust the Y location,
+  //  so this element sits on the horizon!  Either above it (obj_edge is BOTTOM), or below it (obj_edge is TOP)..
+  addStaticObjectToHorizon(in_game_object, in_obj_edge, in_horizon_offset) {
+    this.#staticGameObjects.push(in_game_object);
+    //give it the right scale
+    in_game_object.sizeScale = this.#parentWindow.windowScale;
+    //now we need to give it its new location!
+    let tmp_y = this.#layerHorizonHeight;
+    if (in_obj_edge === SceneLayer.TOP) {
+      //adjust the height..  subtract height of game object!
+      tmp_y -= in_game_object.size.height;
+    }
+    //and now adjust any offset...
+    tmp_y += in_horizon_offset;
+    //MAYBE that'll do it??
+    in_game_object.location = new Location(in_game_object.location.x, tmp_y, in_game_object.location.z);
+    //and now the scene loc... no scaling or changing of location for scene loc, since we're static.
+    in_game_object.sceneLocation = new Location(in_game_object.location.x, in_game_object.location.y, in_game_object.location.z);
     this.#element.appendChild(in_game_object.element);
   }
 
@@ -912,6 +971,14 @@ class SceneLayer {
       gameObjects.splice(deletedObjs[i], 1);
     }
 
+  }
+
+  defineLayerHorizonHeightBySize(in_pixels) {
+    this.#layerHorizonHeight = in_pixels;
+  }
+  defineLayerHorizonHeightByObject(in_game_object) {
+    //just call by size...
+    this.defineLayerHorizonHeightBySize(in_game_object.size.height);
   }
 
 }
@@ -1451,27 +1518,30 @@ class CanvasOverlay {
   }
 }
 
+const pastureList = [];
+const farFieldList = [];
 const hillList = [];
+const skyList = [];  //umm... the sun??  stuff to cover it?
 //umm...should it just be a function?
-function hillLayerBuilder(in_window) {
+function hillLayerPreBuild() {
   //Well.... we pick a couple random hills, and then place them.  Not much to it.
-  const totalHills = 4;
-  const colors = ["g"];
 
   let tmp_hills_to_pick = 2;
 
   //pick our color ..  will this be based on season??  let's not get ahead of myself here...  no seasons til it's
   //  actually done first, thank you very much!
-  let tmp_color = colors[0];
+  let tmp_color = HILL_COLORS[0];
 
   //now we pick however many..
   let tmp_hills = [];
   let tmp_num;
   for (let i=0; i<tmp_hills_to_pick; i++) {
-    tmp_num = Math.floor((Math.random() * totalHills)) + 1;  //(add 1, since our first hill is 1, not zero)
-    while (totalHills > tmp_hills_to_pick && tmp_hills.findIndex(vv_val => vv_val === tmp_num) !== -1) {
+    tmp_num = Math.floor((Math.random() * HILL_OPTIONS)) + 1;  //(add 1, since our first hill is 1, not zero)
+    //only do this check if we have more hills than how many we need!  (if we have less hill options than we need,
+    //  then we will get repeats guaranteed..)
+    while (HILL_OPTIONS > tmp_hills_to_pick && tmp_hills.findIndex(vv_val => vv_val === tmp_num) !== -1) {
       tmp_num += 1;
-      if (tmp_num > totalHills) {
+      if (tmp_num > HILL_OPTIONS) {
         //start back at the first one.  which is 1 (not zero)
         tmp_num = 1;
       }
@@ -1480,16 +1550,16 @@ function hillLayerBuilder(in_window) {
   }
 
   for (let i=0; i<tmp_hills.length; i++) {  
-    hillList.push("assets/hill/hill_" + (tmp_hills[i] < 10 ? "0" : "") + tmp_hills[i] + "_" + tmp_color + ".png");
+    hillList.push(HILL_NAME + (tmp_hills[i] < 10 ? "0" : "") + tmp_hills[i] + "_" + tmp_color + "." + IMG_TYPE);
   }
-
 }
 //In my little mockup, the hills were 318 px down from top edge.. (of height 900)..  318/900.
-function hillLayerDisplayer(in_window) {
+function hillLayerBuild(in_window) {
   const heightRatio = 320/900;
+  const zIndex = -10;
 
   //constructor(in_depth, in_ratio_horizontal, in_ratio_vertical, in_relative_height, in_parent_window)
-  let tmp_layer = new SceneLayer(-10, 0.01, 0, heightRatio, in_window);
+  let tmp_layer = new SceneLayer(zIndex, 0.01, 0, heightRatio, in_window);
 
   //nooow create these objects??
   let tmp_avg_start = in_window.windowElement.clientWidth / hillList.length;
@@ -1510,7 +1580,84 @@ function hillLayerDisplayer(in_window) {
 
   return tmp_layer;
 }
+function farFieldLayerPreBuild() {
+  farFieldList.push("assets/farfield.png");
+  farFieldList.push("assets/farfield_top_edge.png");
+  farFieldList.push("assets/field.png");
+}
+function farFieldLayerBuild(in_window) {
+  const heightRatio = 516/900;
+  const zIndex = -5;
 
+  let tmp_layer = new SceneLayer(zIndex, 0.06, 0, heightRatio, in_window);
+
+  //gotta create our images!  ohhh...  umm... the grass and top edge are static, huh?
+  let tmp_obj = new GameObject();
+  tmp_obj.setImage("assets/farfield.png", FileLoader.Instance().getFile("assets/farfield.png"));
+  //this guy is at the bottom..
+  tmp_obj.location = new Location(0, 0, -2);
+  tmp_layer.addStaticObject(tmp_obj);
+  tmp_layer.defineLayerHorizonHeightByObject(tmp_obj);
+
+  tmp_obj = new GameObject();
+  tmp_obj.setImage("assets/farfield_top_edge.png", FileLoader.Instance().getFile("assets/farfield_top_edge.png"));
+  //this guy is at the top edge of the grass we just created..
+  //the height is....  height of horizon in layer, minus our height..??  but it's our height after its been 
+  //  scaled... and it doesn't get scaled until we add it to the layer...???  that's MESSY!  Fuck.  HMmm....
+  tmp_obj.location = new Location(0, 0, -1);
+  //tmp_layer.addStaticObject(tmp_obj);
+  tmp_layer.addStaticObjectToHorizon(tmp_obj, SceneLayer.TOP, -1);
+
+  return tmp_layer;
+}
+function skyLayerPreBuild() {
+  skyList.push("assets/sky.png");
+}
+function skyLayerBuild(in_window) {
+  const heightRatio = 372/900;
+  const zIndex = -15;
+
+  let tmp_layer = new SceneLayer(zIndex, 0, 0, heightRatio, in_window);
+
+
+  return tmp_layer;
+}
+function pastureLayerPreBuild() {
+  pastureList.push("assets/pasture.png");
+  pastureList.push("assets/frontpasture_top_edge.png");
+
+  for (let i=1; i <= GRASS_S_OPTIONS; i++) {
+    pastureList.push(GRASS_S_NAME + (i < 10 ? "0" : "") + i + "." + IMG_TYPE);
+  }
+  for (let i=1; i <= GRASS_L_OPTIONS; i++) {
+    pastureList.push(GRASS_L_NAME + (i < 10 ? "0" : "") + i + "." + IMG_TYPE);
+  }
+}
+function pastureLayerBuild(in_window) {
+  const heightRatio = 1;
+  const zIndex = -1;  
+
+  let tmp_layer = new SceneLayer(zIndex, 1, 0, heightRatio, in_window);
+
+  //create the pasture and top edge..
+  let tmp_obj = new GameObject();
+  tmp_obj.setImage("assets/pasture.png", FileLoader.Instance().getFile("assets/pasture.png"));
+  //this guy is at the bottom..
+  tmp_obj.location = new Location(0, 0, -1);
+  tmp_layer.addStaticObject(tmp_obj);
+  tmp_layer.defineLayerHorizonHeightByObject(tmp_obj);
+
+  tmp_obj = new GameObject();
+  tmp_obj.setImage("assets/frontpasture_top_edge.png", FileLoader.Instance().getFile("assets/frontpasture_top_edge.png"));
+  //this guy is at the top edge of the grass we just created..
+  //the height is....  height of horizon in layer, minus our height..??  but it's our height after its been 
+  //  scaled... and it doesn't get scaled until we add it to the layer...???  that's MESSY!  Fuck.  HMmm....
+  tmp_obj.location = new Location(0, 0, 0);
+  tmp_layer.addStaticObjectToHorizon(tmp_obj, SceneLayer.TOP, -1);
+
+
+  return tmp_layer;
+}
 
 //ummm..... GameWindow is where our game happens...  externally, I'm telling the gamewindow what z-index each thing 
 //  needs to be on.  However, the pasture horizon is a point where some objects change z-index...
@@ -1577,8 +1724,16 @@ PreloadHandler.Instance().addFile("assets/canvas_edge_v_light.png");
 PreloadHandler.Instance().addFile("assets/canvas_edge_h_light.png");
 PreloadHandler.Instance().addFile("assets/canvas_edge_v_right.png");
 PreloadHandler.Instance().addFile("assets/canvas_edge_h_top.png");
-hillLayerBuilder();
-hillList.forEach(vv_hill => PreloadHandler.Instance().addFile(vv_hill));
+skyLayerPreBuild();
+hillLayerPreBuild();
+farFieldLayerPreBuild();
+pastureLayerPreBuild();
+
+skyList.forEach(vv_img => PreloadHandler.Instance().addFile(vv_img));
+hillList.forEach(vv_img => PreloadHandler.Instance().addFile(vv_img));
+farFieldList.forEach(vv_img => PreloadHandler.Instance().addFile(vv_img));
+pastureList.forEach(vv_img => PreloadHandler.Instance().addFile(vv_img));
+
 PreloadHandler.Instance().loadAll(imagesLoaded);
 console.log("ready ready");
 
@@ -1608,9 +1763,14 @@ function imagesLoaded() {
   tmp_char_canvas.top = "assets/canvas_edge_h_top.png";
   tmp_char_canvas.createCanvas();
 
-  let tmp_hill_scene = hillLayerDisplayer(gameWindow);
+  let tmp_sky_scene = skyLayerBuild(gameWindow);
+  let tmp_hill_scene = hillLayerBuild(gameWindow);
+  let tmp_farfield_scene = farFieldLayerBuild(gameWindow);
+  let tmp_pasture_scene = pastureLayerBuild(gameWindow);
   //console.log("picked hills:");
   //tmp_hills.forEach(vv_img => console.log(vv_img));
+  //tmp_sky_scene.update();
   tmp_hill_scene.update();
-
+  tmp_farfield_scene.update();
+  //tmp_pasture_scene.update();
 }
