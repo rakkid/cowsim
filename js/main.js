@@ -981,6 +981,9 @@ class SceneLayer {
     this.defineLayerHorizonHeightBySize(in_game_object.size.height);
   }
 
+  get horizonHeight() {
+    return this.#layerHorizonHeight;
+  }
 }
 
 //Here's the game window...?  OK, making it so I can use multiple of these, and they will be tied to the 
@@ -1632,6 +1635,9 @@ function pastureLayerPreBuild() {
   for (let i=1; i <= GRASS_L_OPTIONS; i++) {
     pastureList.push(GRASS_L_NAME + (i < 10 ? "0" : "") + i + "." + IMG_TYPE);
   }
+
+  //OMG!!  ADD THE COW DUH!!!!
+  pastureList.push("assets/cow.png");
 }
 function pastureLayerBuild(in_window) {
   const heightRatio = 1;
@@ -1654,6 +1660,16 @@ function pastureLayerBuild(in_window) {
   //  scaled... and it doesn't get scaled until we add it to the layer...???  that's MESSY!  Fuck.  HMmm....
   tmp_obj.location = new Location(0, 0, 0);
   tmp_layer.addStaticObjectToHorizon(tmp_obj, SceneLayer.TOP, -1);
+
+  //le moo!
+  tmp_obj = new GameObject();
+  tmp_obj.locationPoint = GameObject.LOC_BC;
+  let tmp_cow_file = FileLoader.Instance().getFile("assets/cow.png");
+  tmp_obj.setImage("assets/cow.png", tmp_cow_file);
+  let tmp_x = Math.random() * (in_window.windowElement.clientWidth - (tmp_cow_file.naturalWidth * 1.2)) + (tmp_cow_file.naturalWidth * 0.6);
+  let tmp_y = Math.random() * (tmp_layer.horizonHeight - (tmp_cow_file.naturalHeight * 0.4)) + (tmp_cow_file.naturalHeight * 0.2);
+  tmp_obj.location = new Location(tmp_x, tmp_y, 0);
+  tmp_layer.addObject(tmp_obj);
 
 
   return tmp_layer;
@@ -1772,5 +1788,5 @@ function imagesLoaded() {
   //tmp_sky_scene.update();
   tmp_hill_scene.update();
   tmp_farfield_scene.update();
-  //tmp_pasture_scene.update();
+  tmp_pasture_scene.update();
 }
