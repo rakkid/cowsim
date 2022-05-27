@@ -821,13 +821,20 @@ class SceneScaler {
   #vDistanceRear;
   #horizonHeightFront;
   #horizonHeightRear;
+  #horizonHeightAtHorizon
 
   #zLocationFront;
   #zLocationRear;
   #zLocationHorizon;
 
   #zDistance;
+  #zDistanceFrontToH;
+  #zDistanceHToRear;
   #hDifference;
+  #vDifference;
+  #vDistanceHorizon;
+  #horizonHeightDifferenceFrontToHorizon;
+  #horizonHeightDifferenceHorizonToRear;
 
   //the view window
   #sceneSize;
@@ -836,6 +843,9 @@ class SceneScaler {
   #tmp_ratio;
   #tmp_dist;
   #tmp_edge;
+  //this guy I can reuse tmp_edge for, but ehh... I want it a bit more descriptive.  
+  //  not that this is at all coherent...
+  #tmp_bottom_height_from_horizon;
 
   constructor(in_horizontal_distance_front, 
               in_vertical_distance_front, 
@@ -846,6 +856,7 @@ class SceneScaler {
               in_z_distance_from_camera_horizon, 
               in_horizon_height_front, 
               in_horizon_height_rear, 
+              in_horizon_height_at_horizon, 
               in_scene_size) {
     this.#hDistanceFront = in_horizontal_distance_front;
     this.#hDistanceRear = in_horizontal_distance_rear;
@@ -856,12 +867,23 @@ class SceneScaler {
     this.#zLocationHorizon = in_z_distance_from_camera_horizon;
     this.#horizonHeightFront = in_horizon_height_front;
     this.#horizonHeightRear = in_horizon_height_rear;
+    this.#horizonHeightAtHorizon = in_horizon_height_at_horizon;
     this.#sceneSize = in_scene_size;
 
     //working with our z-distance as negative, let's say rear is -110, front is -40.
     //  -110 - -40 = -70 distance.  Keep it negative??  We'll see..
     this.#zDistance = this.#zLocationRear - this.#zLocationFront;
+    this.#zDistanceFrontToH = this.#zLocationHorizon - this.#zLocationFront;
+    this.#zDistanceFrontToH = this.#zLocationRear - this.#zLocationHorizon;
     this.#hDifference = this.#hDistanceRear - this.#hDistanceFront;
+    this.#vDifference = this.vDistanceRear - this.#vDistanceFront;
+
+    //calc the vertical distance at the horizon..
+    this.#tmp_ratio = this.#zDistanceFrontToH / this.#zDistance;
+    this.#vDistanceHorizon = (this.#tmp_ratio * this.vDifference) + this.vDistanceFront;
+
+    this.#horizonHeightDifferenceFrontToHorizon = this.#horizonHeightAtHorizon - this.#horizonHeightFront;
+    this.#horizonHeightDifferenceHorizonToRear = this.#horizonHeightRear - this.#horizonHeightAtHorizon;
   }
 
   //Here we are, folks!!  take in the center point of the scene and a location, and it converts that
@@ -895,7 +917,28 @@ class SceneScaler {
 
     //Here's our Y / vertical location... This one is a bit more complicated than X??  As we get farther back toward
     //  the horizon, we need to adjust for that..  Can I just use front/rear vDistance dumbly?
-    //TODO
+    //So for horizontal, we know where our center is, and we can calc the left edge easy.
+    //For vertical, we need to calc based on the horizon!
+    //tmp_ratio is still good!
+    //OH shit, I forgot I need to do this for front or back of the horizon!!)
+    //we do front first, because that's what I calculated first.
+    if ((in_loc.z - in_center.z) <= this.zLocationHorizon) {
+      this.#tmp_ratio = (in_loc.z - this.#zLocationFront) / this.#zDistanceFrontToH;
+      this.#tmp_bottom_height_from_horizon = (this.#tmp_ratio * this.#horizonHeightDifferenceFrontToHorizon) + this.#horizonHeightFront;
+      //we need to get the vertical distance at this z depth.
+      this.#tmp_dist = (this.#tmp_ratio * this.#vDifference) + this.#vDistanceFront;
+      //now we can get the ratio how high up we are from the bottom and multiply by scene height!
+      tmp_y = ((in_loc.y + this.#tmp_bottom_height_from_horizon) / this.#tmp_dist) * this.sceneSize.height;
+    }
+    else {
+      //okayyy!  Doing the same thing, essentially, just from horizon to rear, so the horizon goes dooown instead of up.
+      this.#tmp_ratio = (in_loc.z - this.#zLocationHorizon) / this.#zDistanceHToRear;
+      this.#tmp_bottom_height_from_horizon = (this.#tmp_ratio * this.#horizonHeightDifferenceHorizonToRear) + this.#horizonHeightAtHorizon;
+      //we need to get the vertical distance at this z depth.
+      this.#tmp_dist = (this.#tmp_ratio * this.#vDifference) + this.#vDistanceFront;
+      //now we can get the ratio how high up we are from the bottom and multiply by scene height!
+      tmp_y = ((in_loc.y + this.#tmp_bottom_height_from_horizon) / this.#tmp_dist) * this.sceneSize.height;
+    }
 
     //OK.. our horizontal position..  We need to know how close we are to the front vs the back.  Use that ratio
     //  to calc the horizontal left-right ratio at that distance.
@@ -949,6 +992,8 @@ class SceneLayer {
   #element
   #gameObjects;  //is there a best way to have these dudes sorted?  I think I once read about handling collisions..
   #staticGameObjects;
+
+  #sceneScalers = [];
 
   constructor(in_depth, in_ratio_horizontal, in_ratio_vertical, in_relative_height, in_parent_window) {
     this.#baseDepth = in_depth;
