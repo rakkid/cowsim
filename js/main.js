@@ -792,8 +792,14 @@ class GameObject {
     }
     this.#sceneLocation = in_value;
 
+    //NOTE: with the z-Index values I'm using at the moment, I need to round/floor that value..  If there are 2 
+    //  things near each other, and one is at like 1.8 and 1.6, they will both get floored to 1.  But if we move 
+    //  closer, they will be at 2.1 and 1.9.  So the 2-guy will be in front.  IF the 1.9 guy was added later, 
+    //  then IT will show as being in front when they are at 1.8 and 1.6.  SOo... I gotta fix that..  I can do it 
+    //  by multiplying Z value by 10?  That should do the trick.
+
     //and now update our location??  this is absolute locations within our parent..
-    this.#element.style.zIndex = Math.floor(this.#sceneLocation.z);
+    this.#element.style.zIndex = Math.floor(this.#sceneLocation.z * 100);
     //now set the location to our element!  We do bottom left!  (x and y offsets are already calc'd)
     //console.log("HILL LEFT IS " + (this.#sceneLocation.x + this.#xyOffset.x));
     this.#element.style.left = Math.round(this.#sceneLocation.x + this.#xyOffset.x) + "px";
