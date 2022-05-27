@@ -835,6 +835,7 @@ class SceneScaler {
   #vDistanceHorizon;
   #horizonHeightDifferenceFrontToHorizon;
   #horizonHeightDifferenceHorizonToRear;
+  #zDistanceToBeginSizeScaling;
 
   //the view window
   #sceneSize;
@@ -843,6 +844,7 @@ class SceneScaler {
   #tmp_ratio;
   #tmp_dist;
   #tmp_edge;
+  #tmp_scale;
   //this guy I can reuse tmp_edge for, but ehh... I want it a bit more descriptive.  
   //  not that this is at all coherent...
   #tmp_bottom_height_from_horizon;
@@ -857,6 +859,7 @@ class SceneScaler {
               in_horizon_height_front, 
               in_horizon_height_rear, 
               in_horizon_height_at_horizon, 
+              in_z_distance_begin_scaling,
               in_scene_size) {
     this.#hDistanceFront = in_horizontal_distance_front;
     this.#hDistanceRear = in_horizontal_distance_rear;
@@ -867,7 +870,12 @@ class SceneScaler {
     this.#zLocationHorizon = in_z_distance_from_camera_horizon;
     this.#horizonHeightFront = in_horizon_height_front;
     this.#horizonHeightRear = in_horizon_height_rear;
-    this.#horizonHeightAtHorizon = in_horizon_height_at_horizon;
+    //umm... I think this one needs to be calc'd for height of game-location numbers??
+    //if this comes in as 300.  we know window height is 900.  so .33.  so we calc
+    //  game height at horizon location, and multiply by .33??  that's horizon height.
+    //we already have it below..  this.#vDistanceHorizon
+    //this.#horizonHeightAtHorizon = in_horizon_height_at_horizon;
+    this.#zDistanceToBeginSizeScaling = in_z_distance_begin_scaling;
     this.#sceneSize = in_scene_size;
 
     //working with our z-distance as negative, let's say rear is -110, front is -40.
@@ -881,6 +889,7 @@ class SceneScaler {
     //calc the vertical distance at the horizon..
     this.#tmp_ratio = this.#zDistanceFrontToH / this.#zDistance;
     this.#vDistanceHorizon = (this.#tmp_ratio * this.vDifference) + this.vDistanceFront;
+    this.#horizonHeightAtHorizon = (in_horizon_height_at_horizon / this.#sceneSize.height) * this.#vDistanceHorizon;
 
     this.#horizonHeightDifferenceFrontToHorizon = this.#horizonHeightAtHorizon - this.#horizonHeightFront;
     this.#horizonHeightDifferenceHorizonToRear = this.#horizonHeightRear - this.#horizonHeightAtHorizon;
@@ -904,7 +913,7 @@ class SceneScaler {
     //now we determine where on the screen their location is..
     this.#tmp_edge = in_center.x - (this.#tmp_dist * 0.5);
     //now we can get the ratio across that distance we're at, and multiply it by our scene size!
-    tmp_x = ((in_loc.x - this.#tmp_edge) / this.#tmp_dist) * this.sceneSize.width;
+    tmp_x = ((in_loc.x - this.#tmp_edge) / this.#tmp_dist) * this.#sceneSize.width;
 
     //Here's our Z...  umm... everything in front of the horizon distance is positive.  everything behind it is
     //  negative.  Well... we can just make it really simple.  All Z needs us to do is place in front of or 
@@ -928,7 +937,7 @@ class SceneScaler {
       //we need to get the vertical distance at this z depth.
       this.#tmp_dist = (this.#tmp_ratio * this.#vDifference) + this.#vDistanceFront;
       //now we can get the ratio how high up we are from the bottom and multiply by scene height!
-      tmp_y = ((in_loc.y + this.#tmp_bottom_height_from_horizon) / this.#tmp_dist) * this.sceneSize.height;
+      tmp_y = ((in_loc.y + this.#tmp_bottom_height_from_horizon) / this.#tmp_dist) * this.#sceneSize.height;
     }
     else {
       //okayyy!  Doing the same thing, essentially, just from horizon to rear, so the horizon goes dooown instead of up.
@@ -937,12 +946,54 @@ class SceneScaler {
       //we need to get the vertical distance at this z depth.
       this.#tmp_dist = (this.#tmp_ratio * this.#vDifference) + this.#vDistanceFront;
       //now we can get the ratio how high up we are from the bottom and multiply by scene height!
-      tmp_y = ((in_loc.y + this.#tmp_bottom_height_from_horizon) / this.#tmp_dist) * this.sceneSize.height;
+      tmp_y = ((in_loc.y + this.#tmp_bottom_height_from_horizon) / this.#tmp_dist) * this.#sceneSize.height;
     }
+
+    //we also need to scale the size..  umm... 50 pixels at the front..  fuck, I gotta write this one down.
+    this.#tmp_scale = 1;
 
     //OK.. our horizontal position..  We need to know how close we are to the front vs the back.  Use that ratio
     //  to calc the horizontal left-right ratio at that distance.
-    return new Location(tmp_x, tmp_y, tmp_z);
+    return [this.#tmp_scale, new Location(tmp_x, tmp_y, tmp_z)];
+  }
+
+  //compare compare...  takes in another sceneScaler and compares which one's front edge is closest to the 
+  //  camera.  if this one is closer, return -1.  if other is closer return 1.  if they the same return zero.
+  //  if this isn't even a SceneScaler???  fail?
+  compareScaler(in_scaler) {
+    if (! in_scaler instanceof SceneScaler) {
+      throw "Cannot compare non SceneScaler to a SceneScaler!";
+    }
+    //call the other guy with our number... it returns telling us if we're closer (it'll send a -1);
+    return in_scaler.compareZDistance(this.#zLocationFront);
+  }
+  //another SceneScaler is comparing itself to us!  If THEY are closer, give them -1!
+  //  if we are the same, give them 0.
+  //  if we are closer, give them 1.
+  compareZDistance(in_distance) {
+    if (in_distance < this.#zLocationFront) {
+      return -1;
+    }
+    else if (in_distance == this.#zLocationFront) {
+      return 0;
+    }
+    else {
+      return 1;
+    }
+  }
+
+  //this checks against the BACK EDGE only!  It does'nt care if the incoming z-position is 
+  //  before the front edge..  (since scene scalers are stored front to back)
+  //zLocationRear is NEGATIVE??  shit.
+  //  zPosition: -90.  cameraZ is -80.  zLocationRear is -40.
+  //  -90 >= -80 + -40 = -90 >= -120.  Yes.
+  zInRange(in_z_position, in_camera_z) {
+    console.log("in_z " + in_z_position + ", camera z " + in_camera_z + "z, rearloc " + this.#zLocationRear);
+    if (in_z_position >= in_camera_z + this.#zLocationRear) {
+      console.log("Z in Range!!");
+      return true;
+    }
+    return false;
   }
 
 }
@@ -1080,14 +1131,6 @@ class SceneLayer {
       }
       //if the scene view changed OR the gameObject's location changed, then we need to update!
       else if (this.#parentWindow.viewChange || vv_object.locChange) {
-        let tmp_size_scale = this.#parentWindow.windowScale;
-        let tmp_x = 0;
-        let tmp_y = 0;
-        let tmp_z = 0;
-
-        tmp_x = vv_object.location.x;
-        tmp_y = vv_object.location.y;
-        tmp_z = vv_object.location.z;
         //check if its out of view??  Maybe move those to a different gameObject list?? well... we'd need to
         //  check if its back in view, anyway, sooo maybe not..
 
@@ -1095,11 +1138,29 @@ class SceneLayer {
 
         //if it WAS in view, and is now out of view, we need to remove it from our element.
 
-        //aaand give it its new infoz!
-        //first give it size scale...
-        vv_object.sizeScale = tmp_size_scale;
-        //now we can give it location.  it takes care of putting these numbers to its element.
-        vv_object.sceneLocation = new Location(tmp_x, tmp_y, tmp_z);
+        if (this.#sceneScalers.length > 0) {
+          //we need to get its sceneLocation.. which sceneScaler does the object need?  Goes by size..
+          let tmp_scene_scale_info;
+          console.log("SCENE SCALER SIZE " + this.#sceneScalers.length);
+          for (let i=0; i<this.#sceneScalers.length; i++) {
+            if (this.#sceneScalers[i].zInRange(vv_object.location.z, this.#parentWindow.camera.z)) {
+              tmp_scene_scale_info = this.#sceneScalers[i].calcScenePosition(vv_object.location, this.#parentWindow.camera);
+            }
+          }
+          //aaand give it its new infoz!
+          //first give it size scale...
+          //size scale.. umm... this is linear along z distance.
+          vv_object.sizeScale = this.#parentWindow.windowScale * tmp_scene_scale_info[0];
+          //now we can give it location.  it takes care of putting these numbers to its element.
+          vv_object.sceneLocation = tmp_scene_scale_info[1];
+        }
+        else {
+          //we just use the basic stuff..
+          //TODO: probably don't have this... I haven't added scene scalers to my other scenes, though, yet, as I 
+          //  test it and figure out numbers...
+          vv_object.sizeScale = this.#parentWindow.windowScale;
+          vv_object.sceneLocation = new Location(vv_object.location.x, vv_object.location.y, vv_object.location.z);
+        }
       }
       //else we don't need to update this guy.....
     });
@@ -1121,6 +1182,23 @@ class SceneLayer {
 
   get horizonHeight() {
     return this.#layerHorizonHeight;
+  }
+
+  //Add scalers in order of NEAREST to FARTHEST from front of scene.
+  addSceneScaler(in_scaler) {
+    if (! in_scaler instanceof SceneScaler) {
+      throw "addSceneScaler received an object that was not a SceneScaler.";
+    }
+    for (let i=0; i<this.#sceneScalers; i++) {
+      //check if the incoming scaler is closer to the front!  (we'll get a -1)
+      if (in_scaler.compare(this.#sceneScalers[i])) {
+        //it is closer to the front!  We need to insert it here!
+        this.#sceneScalers.splice(i, 0, in_scaler);
+        return;
+      }
+    }
+    //aaand, it wasn't closer than any of them.  So add it to the end.
+    this.#sceneScalers.push(in_scaler);
   }
 }
 
@@ -1145,6 +1223,7 @@ class GameWindow {
 
   #topLeftLoc = [0, 0];
 
+  #camera;
   #viewChange;
 
   //maybe I don't even need a list of elements..?  Unless this guy determines what is and ISN'T visable..
@@ -1299,6 +1378,12 @@ class GameWindow {
   }
   get viewChange() {
     return this.#viewChange;
+  }
+  get camera() {
+    return this.#camera;
+  }
+  set camera(in_camera) {
+    this.#camera = in_camera;
   }
 }
 
@@ -1796,6 +1881,30 @@ function pastureLayerBuild(in_window) {
   tmp_layer.addStaticObject(tmp_obj);
   tmp_layer.defineLayerHorizonHeightByObject(tmp_obj);
 
+  //create SceneScaler for this layer!  This is probably going to take a bit of playing with to figure out..
+  //I started the game camera at 40, 15, 10  ... sooo, we'll work with that.
+  /*
+    constructor(in_horizontal_distance_front, 
+              in_vertical_distance_front, 
+              in_horizontal_distance_rear, 
+              in_vertical_distance_rear, 
+              in_z_distance_from_camera_front,
+              in_z_distance_from_camera_rear, 
+              in_z_distance_from_camera_horizon, 
+              in_horizon_height_front, 
+              in_horizon_height_rear, 
+              in_horizon_height_at_horizon, 
+              in_z_distance_begin_scaling,
+              in_scene_size) {
+  */
+  let tmp_scaler = new SceneScaler(20, 20 * (9/12),
+                                    50, 50 * (9/12),
+                                    0, -100, -20,
+                                    0, 0, tmp_layer.horizonHeight,
+                                    -15, in_window.size);
+  console.log("ADDINGGGG!!  SCENE SCALER");
+  tmp_layer.addSceneScaler(tmp_scaler);
+
   tmp_obj = new GameObject();
   tmp_obj.setImage("assets/frontpasture_top_edge.png", FileLoader.Instance().getFile("assets/frontpasture_top_edge.png"));
   //this guy is at the top edge of the grass we just created..
@@ -1829,7 +1938,7 @@ function pastureLayerBuild(in_window) {
     tmp_rand = Math.floor(Math.random() * GRASS_S_OPTIONS) + 1;
     tmp_file_name = GRASS_S_NAME + (tmp_rand < 10? "0" : "") + tmp_rand + "." + IMG_TYPE;
     tmp_obj.setImage(tmp_file_name, FileLoader.Instance().getFile(tmp_file_name));
-    tmp_obj.location = new Location(Math.round(Math.random() * 800), Math.round(Math.random() * 400), Math.round(Math.random() * 20));
+    tmp_obj.location = new Location(Math.round(Math.random() * 20 + 10), 0, Math.round(Math.random() * 20 - 20));
     tmp_layer.addObject(tmp_obj);
   }
 
@@ -1870,6 +1979,10 @@ let tmp_screen_height = document.body.clientHeight;
 
 let gameWindow = new GameWindow(document.documentElement, 0, 0.18, 12/9);
 gameWindow.buildWindow();
+//it needs a camera..  I don't think I did anything that actually requires the camera's Y value...
+//  this is a "game" location.
+gameWindow.camera = new Location(40, 10, 10);
+
 let charWindow = new GameWindow(gameWindow.windowElement, 0.3, 0, 3/2);
 //let adWindow = new GameWindow(gameWindow.windowElement, 0.25, 0, 3/2);
 
