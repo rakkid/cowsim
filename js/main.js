@@ -842,6 +842,9 @@ class SceneScaler {
   #horizonHeightDifferenceFrontToHorizon;
   #horizonHeightDifferenceHorizonToRear;
   #zDistanceToBeginSizeScaling;
+  #hDistanceWhereBeginScaling;
+  #zScalingDifference;
+  #zScalingRatio;
 
   //the view window
   #sceneSize;
@@ -893,6 +896,12 @@ class SceneScaler {
     this.#hDifference = this.#hDistanceRear - this.#hDistanceFront;
     this.#vDifference = this.#vDistanceRear - this.#vDistanceFront;
 
+    //calc the horizontal distance at distance to begin scaling!   and then we can get scaling ratio.
+    this.#tmp_ratio = (this.#zDistanceToBeginSizeScaling - this.#zLocationFront) / (this.#zDistance);
+    this.#hDistanceWhereBeginScaling = (this.#tmp_ratio * this.#hDifference) + this.#hDistanceFront;
+    this.#zScalingDifference = this.#hDistanceRear - this.#hDistanceWhereBeginScaling;
+    this.#zScalingRatio = this.#hDistanceWhereBeginScaling/this.#hDistanceRear;
+
     //calc the vertical distance at the horizon..
     this.#tmp_ratio = this.#zDistanceFrontToH / this.#zDistance;
     console.log("HERE!!  " + this.#tmp_ratio + " " + this.#vDifference + " " + this.#vDistanceFront);
@@ -940,6 +949,20 @@ class SceneScaler {
     //  camera is at 10, locHorizon is at -20.  10 + -20 = -10.
     tmp_z = in_loc.z - (this.#zLocationHorizon + in_center.z);
 
+    //we also need to scale the size..  umm... 50 pixels at the front..  fuck, I gotta write this one down.
+    //It's pretty easy.  the scale(ratio) is front width / rear width.  easy.
+    //50 px wide at front.  200 px wide at back.  the full 50 will be 1/4 the width at back.  50/200 = 1/4.  YUP.
+    //MAYBE??  My brain FELL OUT!!  I understood this stuff yesteday.... today, forget it!!
+    console.log("SCALE NUMS: scaler " + this.#zScalingRatio + ", hdist " + this.#tmp_dist + ", hdistb " + this.#hDistanceWhereBeginScaling + ", scaledif " + this.#zScalingDifference);
+    if (this.#tmp_dist <= this.#hDistanceWhereBeginScaling) {
+      //our location is closer than where we scale.. so don't scale!
+      this.#tmp_scale = 1;
+    }
+    else {
+      this.#tmp_scale = 1 + ((this.#zScalingRatio - 1) * ((this.#tmp_dist - this.#hDistanceWhereBeginScaling)/this.#zScalingDifference));
+    }
+    console.log("SCALE IS " + this.#tmp_scale);
+
     //Here's our Y / vertical location... This one is a bit more complicated than X??  As we get farther back toward
     //  the horizon, we need to adjust for that..  Can I just use front/rear vDistance dumbly?
     //So for horizontal, we know where our center is, and we can calc the left edge easy.
@@ -982,14 +1005,12 @@ class SceneScaler {
       tmp_y = ((in_loc.y + this.#tmp_bottom_height_from_horizon) / this.#tmp_dist) * this.#sceneSize.height;
     }
 
-    //we also need to scale the size..  umm... 50 pixels at the front..  fuck, I gotta write this one down.
-    this.#tmp_scale = 1;
-
     console.log("scenLocation: " + tmp_x + ", " + tmp_y + ", " + tmp_z);    
 
     //OK.. our horizontal position..  We need to know how close we are to the front vs the back.  Use that ratio
     //  to calc the horizontal left-right ratio at that distance.
     return [this.#tmp_scale, new Location(tmp_x, tmp_y, tmp_z)];
+    //return [1, new Location(tmp_x, tmp_y, tmp_z)];
   }
 
   //compare compare...  takes in another sceneScaler and compares which one's front edge is closest to the 
@@ -1930,10 +1951,10 @@ function pastureLayerBuild(in_window) {
               in_scene_size) {
   */
   let tmp_scaler = new SceneScaler(20, 20 * (9/12),
-                                    80, 80 * (9/12),
-                                    0, -100, -20,
+                                    600, 600 * (9/12),
+                                    0, -15, -15,
                                     0, 0, tmp_layer.horizonHeight,
-                                    -15, in_window.size);
+                                    0, in_window.size);
   console.log("ADDINGGGG!!  SCENE SCALER");
   tmp_layer.addSceneScaler(tmp_scaler);
 
@@ -1946,14 +1967,16 @@ function pastureLayerBuild(in_window) {
   tmp_layer.addStaticObjectToHorizon(tmp_obj, SceneLayer.TOP, -1);
 
   //le moo!
+  for (let i=0; i<6; i++) {
   tmp_obj = new GameObject();
   tmp_obj.locationPoint = GameObject.LOC_BC;
   let tmp_file = FileLoader.Instance().getFile("assets/cow.png");
   tmp_obj.setImage("assets/cow.png", tmp_file);
   //let tmp_x = Math.random() * (in_window.windowElement.clientWidth - (tmp_file.naturalWidth * 1.2)) + (tmp_file.naturalWidth * 0.6);
   //let tmp_y = Math.random() * (tmp_layer.horizonHeight - (tmp_file.naturalHeight * 0.4)) + (tmp_file.naturalHeight * 0.2);
-  tmp_obj.location = new Location(40, 0, 5);
+  tmp_obj.location = new Location(40, 0, 10 - (1*i));
   tmp_layer.addObject(tmp_obj);
+  }
 
 
   //let's put some grass down.
@@ -1967,6 +1990,7 @@ function pastureLayerBuild(in_window) {
   const tmp_h_dif = tmp_h_max - tmp_h_min;
   const tmp_z_dif = tmp_z_max - tmp_z_min;
 
+/*
   let tmp_rand;
   let tmp_file_name;
   let i = 0;
@@ -1989,7 +2013,7 @@ function pastureLayerBuild(in_window) {
     tmp_obj.setImage(tmp_file_name, FileLoader.Instance().getFile(tmp_file_name));
     tmp_obj.location = new Location(35, 0, -10.8);
     tmp_layer.addObject(tmp_obj);
-
+*/
 
   return tmp_layer;
 }
