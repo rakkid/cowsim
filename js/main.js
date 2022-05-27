@@ -793,9 +793,9 @@ class GameObject {
     this.#sceneLocation = in_value;
 
     //and now update our location??  this is absolute locations within our parent..
-    this.#element.style.zIndex = this.#sceneLocation.z;
+    this.#element.style.zIndex = Math.floor(this.#sceneLocation.z);
     //now set the location to our element!  We do bottom left!  (x and y offsets are already calc'd)
-    console.log("HILL LEFT IS " + (this.#sceneLocation.x + this.#xyOffset.x));
+    //console.log("HILL LEFT IS " + (this.#sceneLocation.x + this.#xyOffset.x));
     this.#element.style.left = Math.round(this.#sceneLocation.x + this.#xyOffset.x) + "px";
     this.#element.style.bottom = Math.round(this.#sceneLocation.y + this.#xyOffset.y) + "px";
   }
@@ -877,20 +877,25 @@ class SceneScaler {
     //this.#horizonHeightAtHorizon = in_horizon_height_at_horizon;
     this.#zDistanceToBeginSizeScaling = in_z_distance_begin_scaling;
     this.#sceneSize = in_scene_size;
+    console.log("hzHeight: " + in_horizon_height_at_horizon);
 
     //working with our z-distance as negative, let's say rear is -110, front is -40.
     //  -110 - -40 = -70 distance.  Keep it negative??  We'll see..
     this.#zDistance = this.#zLocationRear - this.#zLocationFront;
     this.#zDistanceFrontToH = this.#zLocationHorizon - this.#zLocationFront;
-    this.#zDistanceFrontToH = this.#zLocationRear - this.#zLocationHorizon;
+    this.#zDistanceHToRear = this.#zLocationRear - this.#zLocationHorizon;
     this.#hDifference = this.#hDistanceRear - this.#hDistanceFront;
-    this.#vDifference = this.vDistanceRear - this.#vDistanceFront;
+    this.#vDifference = this.#vDistanceRear - this.#vDistanceFront;
 
     //calc the vertical distance at the horizon..
     this.#tmp_ratio = this.#zDistanceFrontToH / this.#zDistance;
-    this.#vDistanceHorizon = (this.#tmp_ratio * this.vDifference) + this.vDistanceFront;
+    console.log("HERE!!  " + this.#tmp_ratio + " " + this.#vDifference + " " + this.#vDistanceFront);
+    this.#vDistanceHorizon = (this.#tmp_ratio * this.#vDifference) + this.#vDistanceFront;
+    console.log("HERE!!  " + in_horizon_height_at_horizon + " " + this.#sceneSize.height + " " + this.#vDistanceHorizon);
     this.#horizonHeightAtHorizon = (in_horizon_height_at_horizon / this.#sceneSize.height) * this.#vDistanceHorizon;
+    console.log("hzn height: " + this.#horizonHeightAtHorizon);
 
+    console.log("hzHeightHz " + this.#horizonHeightAtHorizon + ", hzHeightFr " + this.#horizonHeightFront);
     this.#horizonHeightDifferenceFrontToHorizon = this.#horizonHeightAtHorizon - this.#horizonHeightFront;
     this.#horizonHeightDifferenceHorizonToRear = this.#horizonHeightRear - this.#horizonHeightAtHorizon;
   }
@@ -898,6 +903,8 @@ class SceneScaler {
   //Here we are, folks!!  take in the center point of the scene and a location, and it converts that
   //  location into a scene location/position!
   calcScenePosition(in_loc, in_center) {
+    console.log("gameLocation: " + in_loc.x + ", " + in_loc.y + ", " + in_loc.z);
+    console.log("centLocation: " + in_center.x + ", " + in_center.y + ", " + in_center.z);
     let tmp_x = 0;
     let tmp_y = 0;
     let tmp_z = 0;
@@ -905,7 +912,7 @@ class SceneScaler {
     //first let's do Z.  this is the ratio, front to back where the location is!
     //NOTE: #zDistance is NEGATIVE.  But in_loc_z is always smaller than zLocationFront, so we'll get
     //  a negative number there, too...  neg divided neg equals postive.  which we want.  So we are GOOD!
-    this.#tmp_ratio = (in_loc.z - this.#zLocationFront) / this.#zDistance;
+    this.#tmp_ratio = (in_loc.z - (in_center.z + this.#zLocationFront)) / this.#zDistance;
 
     //Here's our X / horizontal location
     //now we can get the horizontal distance at that z depth..
@@ -922,7 +929,10 @@ class SceneScaler {
     //  front: -80.  horizon: -90.  rear:  -120.
     //  our z:  -110.
     //  -110 - -90  = -15.  We are behind the horizon.  BAM!
-    tmp_z = in_loc.z - this.#zLocationHorizon;
+    //OOPS, gotta consider the camera location.. locationHorizon is a distance from camera!!
+    //  camera is at -30, locHorizon is -60.  -30 + -60 = -90.
+    //  camera is at 10, locHorizon is at -20.  10 + -20 = -10.
+    tmp_z = in_loc.z - (this.#zLocationHorizon + in_center.z);
 
     //Here's our Y / vertical location... This one is a bit more complicated than X??  As we get farther back toward
     //  the horizon, we need to adjust for that..  Can I just use front/rear vDistance dumbly?
@@ -931,26 +941,45 @@ class SceneScaler {
     //tmp_ratio is still good!
     //OH shit, I forgot I need to do this for front or back of the horizon!!)
     //we do front first, because that's what I calculated first.
-    if ((in_loc.z - in_center.z) <= this.zLocationHorizon) {
-      this.#tmp_ratio = (in_loc.z - this.#zLocationFront) / this.#zDistanceFrontToH;
-      this.#tmp_bottom_height_from_horizon = (this.#tmp_ratio * this.#horizonHeightDifferenceFrontToHorizon) + this.#horizonHeightFront;
+    //if ((in_loc.z - in_center.z) >= this.zLocationHorizon) {
+    if (tmp_z >= 0) {
+      console.log("IN FRONT OF HORIZON");
+      console.log("in z: " + in_loc.z + ", zFront: " + this.#zLocationFront + ", ftoH: " + this.#zDistanceFrontToH);
       //we need to get the vertical distance at this z depth.
+      //get this guy FIRST, because tmp_ratio is already set front to back!
       this.#tmp_dist = (this.#tmp_ratio * this.#vDifference) + this.#vDistanceFront;
+      console.log("ver height at depth " + this.#tmp_dist);
+      //now we overwrite tmp_ratio to get ratio from from to HORIZON
+      this.#tmp_ratio = (in_loc.z - (in_center.z + this.#zLocationFront)) / this.#zDistanceFrontToH;
+      console.log("ratio " + this.#tmp_ratio);
+      console.log("bleh " + this.#horizonHeightDifferenceFrontToHorizon);
+      console.log("hzHeightFront " + this.#horizonHeightFront);
+      this.#tmp_bottom_height_from_horizon = (this.#tmp_ratio * this.#horizonHeightDifferenceFrontToHorizon) + this.#horizonHeightFront;
+      console.log("hz height " + this.#tmp_bottom_height_from_horizon);
       //now we can get the ratio how high up we are from the bottom and multiply by scene height!
       tmp_y = ((in_loc.y + this.#tmp_bottom_height_from_horizon) / this.#tmp_dist) * this.#sceneSize.height;
+      console.log("y loc " + tmp_y);
     }
     else {
+      console.log("BEHIND HORIZON");
       //okayyy!  Doing the same thing, essentially, just from horizon to rear, so the horizon goes dooown instead of up.
-      this.#tmp_ratio = (in_loc.z - this.#zLocationHorizon) / this.#zDistanceHToRear;
-      this.#tmp_bottom_height_from_horizon = (this.#tmp_ratio * this.#horizonHeightDifferenceHorizonToRear) + this.#horizonHeightAtHorizon;
       //we need to get the vertical distance at this z depth.
       this.#tmp_dist = (this.#tmp_ratio * this.#vDifference) + this.#vDistanceFront;
+      console.log("ver height at depth " + this.#tmp_dist);
+      this.#tmp_ratio = (in_loc.z - (in_center.z + this.#zLocationHorizon)) / this.#zDistanceHToRear;
+      console.log("ratio " + this.#tmp_ratio);
+      console.log("bleh " + this.#horizonHeightDifferenceHorizonToRear);
+      console.log("hzHeightFront " + this.#horizonHeightAtHorizon);
+      this.#tmp_bottom_height_from_horizon = (this.#tmp_ratio * this.#horizonHeightDifferenceHorizonToRear) + this.#horizonHeightAtHorizon;
+      console.log("hz height " + this.#tmp_bottom_height_from_horizon);
       //now we can get the ratio how high up we are from the bottom and multiply by scene height!
       tmp_y = ((in_loc.y + this.#tmp_bottom_height_from_horizon) / this.#tmp_dist) * this.#sceneSize.height;
     }
 
     //we also need to scale the size..  umm... 50 pixels at the front..  fuck, I gotta write this one down.
     this.#tmp_scale = 1;
+
+    console.log("scenLocation: " + tmp_x + ", " + tmp_y + ", " + tmp_z);    
 
     //OK.. our horizontal position..  We need to know how close we are to the front vs the back.  Use that ratio
     //  to calc the horizontal left-right ratio at that distance.
@@ -988,9 +1017,7 @@ class SceneScaler {
   //  zPosition: -90.  cameraZ is -80.  zLocationRear is -40.
   //  -90 >= -80 + -40 = -90 >= -120.  Yes.
   zInRange(in_z_position, in_camera_z) {
-    console.log("in_z " + in_z_position + ", camera z " + in_camera_z + "z, rearloc " + this.#zLocationRear);
     if (in_z_position >= in_camera_z + this.#zLocationRear) {
-      console.log("Z in Range!!");
       return true;
     }
     return false;
@@ -1141,7 +1168,6 @@ class SceneLayer {
         if (this.#sceneScalers.length > 0) {
           //we need to get its sceneLocation.. which sceneScaler does the object need?  Goes by size..
           let tmp_scene_scale_info;
-          console.log("SCENE SCALER SIZE " + this.#sceneScalers.length);
           for (let i=0; i<this.#sceneScalers.length; i++) {
             if (this.#sceneScalers[i].zInRange(vv_object.location.z, this.#parentWindow.camera.z)) {
               tmp_scene_scale_info = this.#sceneScalers[i].calcScenePosition(vv_object.location, this.#parentWindow.camera);
@@ -1277,7 +1303,7 @@ class GameWindow {
     let tmp_width_max = Math.floor(this.#bodyWidth * this.#parentRatio);
     let tmp_height_max = Math.floor(this.#bodyHeight * this.#parentRatio);
 
-    console.log("max w/h are: " + tmp_width_max + " / " + tmp_height_max);
+    //console.log("max w/h are: " + tmp_width_max + " / " + tmp_height_max);
 
     //now we need to see which is the limiting one...
     let tmp_height_for_width = Math.floor(tmp_width_max / this.#widthHeightRatio);
@@ -1301,9 +1327,9 @@ class GameWindow {
       this.#borderPadding = Math.floor(this.#bodyWidth * this.#borderRatio);
     }
 
-    console.log("window will be: " + this.#width + " x " + this.#height);
-    console.log("webpage is: " + this.#bodyWidth + " x " + this.#bodyHeight);
-    console.log("padding is: " + this.#borderPadding)
+    //console.log("window will be: " + this.#width + " x " + this.#height);
+    //console.log("webpage is: " + this.#bodyWidth + " x " + this.#bodyHeight);
+    //console.log("padding is: " + this.#borderPadding)
     //bam.
   }
 
@@ -1521,7 +1547,7 @@ class FileLoader {
 
   //this returns a previously loaded file..
   getFile(in_name) {
-    console.log("map size: " + this.#fileMap.size + "..  " + this.#elementToFileMap.get(this.#fileMap.get(in_name)));
+    //console.log("map size: " + this.#fileMap.size + "..  " + this.#elementToFileMap.get(this.#fileMap.get(in_name)));
     return this.#fileMap.get(in_name);
   }
 }
@@ -1597,9 +1623,9 @@ class CanvasOverlay {
     this.#imageElement.src = in_image;
     }
     else {
-      console.log("gREAT!  file already loaded");
+      //console.log("gREAT!  file already loaded");
       this.#image = this.#imageElement.src;
-      console.log("iamge is: " + this.#image);
+      //console.log("iamge is: " + this.#image);
     }
 
     this.#scale = in_scale;
@@ -1898,7 +1924,7 @@ function pastureLayerBuild(in_window) {
               in_scene_size) {
   */
   let tmp_scaler = new SceneScaler(20, 20 * (9/12),
-                                    50, 50 * (9/12),
+                                    80, 80 * (9/12),
                                     0, -100, -20,
                                     0, 0, tmp_layer.horizonHeight,
                                     -15, in_window.size);
@@ -1925,7 +1951,7 @@ function pastureLayerBuild(in_window) {
 
 
   //let's put some grass down.
-  let tmp_grass_s = 10;
+  let tmp_grass_s = 0;
   let tmp_grass_l = 2;
 
   let tmp_rand;
@@ -1941,6 +1967,16 @@ function pastureLayerBuild(in_window) {
     tmp_obj.location = new Location(Math.round(Math.random() * 20 + 10), 0, Math.round(Math.random() * 20 - 20));
     tmp_layer.addObject(tmp_obj);
   }
+
+  //let's make ONE grass to test this...
+    tmp_obj = new GameObject();
+    tmp_obj.locationPoint = GameObject.LOC_BC;
+    tmp_rand = 1;
+    tmp_file_name = GRASS_S_NAME + (tmp_rand < 10? "0" : "") + tmp_rand + "." + IMG_TYPE;
+    tmp_obj.setImage(tmp_file_name, FileLoader.Instance().getFile(tmp_file_name));
+    tmp_obj.location = new Location(35, 0, -10.8);
+    tmp_layer.addObject(tmp_obj);
+
 
   return tmp_layer;
 }
