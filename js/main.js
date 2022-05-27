@@ -811,6 +811,99 @@ class GameObject {
   }
 }
 
+//this badboy converts GAME locations to visual/screen/SCENE locations in our GameWindow!
+//A SceneLayer can use multiple of these to adjust different depths different..
+//I'm starting with X and Z, but then will figure out Y.
+class SceneScaler {
+  #hDistanceFront;
+  #hDistanceRear;
+  #vDistanceFront;
+  #vDistanceRear;
+  #horizonHeightFront;
+  #horizonHeightRear;
+
+  #zLocationFront;
+  #zLocationRear;
+  #zLocationHorizon;
+
+  #zDistance;
+  #hDifference;
+
+  //the view window
+  #sceneSize;
+
+  //let's save and reuse our temporary variables..
+  #tmp_ratio;
+  #tmp_dist;
+  #tmp_edge;
+
+  constructor(in_horizontal_distance_front, 
+              in_vertical_distance_front, 
+              in_horizontal_distance_rear, 
+              in_vertical_distance_rear, 
+              in_z_distance_from_camera_front,
+              in_z_distance_from_camera_rear, 
+              in_z_distance_from_camera_horizon, 
+              in_horizon_height_front, 
+              in_horizon_height_rear, 
+              in_scene_size) {
+    this.#hDistanceFront = in_horizontal_distance_front;
+    this.#hDistanceRear = in_horizontal_distance_rear;
+    this.#vDistanceFront = in_vertical_distance_front;
+    this.#vDistanceRear = in_vertical_distance_rear;
+    this.#zLocationFront = in_z_distance_from_camera_front;
+    this.#zLocationRear = in_z_distance_from_camera_rear;
+    this.#zLocationHorizon = in_z_distance_from_camera_horizon;
+    this.#horizonHeightFront = in_horizon_height_front;
+    this.#horizonHeightRear = in_horizon_height_rear;
+    this.#sceneSize = in_scene_size;
+
+    //working with our z-distance as negative, let's say rear is -110, front is -40.
+    //  -110 - -40 = -70 distance.  Keep it negative??  We'll see..
+    this.#zDistance = this.#zLocationRear - this.#zLocationFront;
+    this.#hDifference = this.#hDistanceRear - this.#hDistanceFront;
+  }
+
+  //Here we are, folks!!  take in the center point of the scene and a location, and it converts that
+  //  location into a scene location/position!
+  calcScenePosition(in_loc, in_center) {
+    let tmp_x = 0;
+    let tmp_y = 0;
+    let tmp_z = 0;
+
+    //first let's do Z.  this is the ratio, front to back where the location is!
+    //NOTE: #zDistance is NEGATIVE.  But in_loc_z is always smaller than zLocationFront, so we'll get
+    //  a negative number there, too...  neg divided neg equals postive.  which we want.  So we are GOOD!
+    this.#tmp_ratio = (in_loc.z - this.#zLocationFront) / this.#zDistance;
+
+    //Here's our X / horizontal location
+    //now we can get the horizontal distance at that z depth..
+    this.#tmp_dist = this.#tmp_ratio * this.#hDifference + this.#hDistanceFront;
+    //now we determine where on the screen their location is..
+    this.#tmp_edge = in_center.x - (this.#tmp_dist * 0.5);
+    //now we can get the ratio across that distance we're at, and multiply it by our scene size!
+    tmp_x = ((in_loc.x - this.#tmp_edge) / this.#tmp_dist) * this.sceneSize.width;
+
+    //Here's our Z...  umm... everything in front of the horizon distance is positive.  everything behind it is
+    //  negative.  Well... we can just make it really simple.  All Z needs us to do is place in front of or 
+    //  behind the things relative to itself.  So no exact ratios are needed.
+    //  object's location MINUS horizon Z.  The. end.
+    //  front: -80.  horizon: -90.  rear:  -120.
+    //  our z:  -110.
+    //  -110 - -90  = -15.  We are behind the horizon.  BAM!
+    tmp_z = in_loc.z - this.#zLocationHorizon;
+
+    //Here's our Y / vertical location... This one is a bit more complicated than X??  As we get farther back toward
+    //  the horizon, we need to adjust for that..  Can I just use front/rear vDistance dumbly?
+    //TODO
+
+    //OK.. our horizontal position..  We need to know how close we are to the front vs the back.  Use that ratio
+    //  to calc the horizontal left-right ratio at that distance.
+    return new Location(tmp_x, tmp_y, tmp_z);
+  }
+
+}
+
 //I need to create something that handles depth and converts it into z-index and height... and I guess
 //  horizontal movement in the distance.
 //  a) pasture / grass / ground area that is in front of our "horizon"  - also need a height of our horizon
@@ -1654,7 +1747,7 @@ function pastureLayerBuild(in_window) {
   let tmp_obj = new GameObject();
   tmp_obj.setImage("assets/pasture.png", FileLoader.Instance().getFile("assets/pasture.png"));
   //this guy is at the bottom..
-  tmp_obj.location = new Location(0, 0, -1);
+  tmp_obj.location = new Location(0, 0, 0);
   tmp_layer.addStaticObject(tmp_obj);
   tmp_layer.defineLayerHorizonHeightByObject(tmp_obj);
 
@@ -1669,13 +1762,31 @@ function pastureLayerBuild(in_window) {
   //le moo!
   tmp_obj = new GameObject();
   tmp_obj.locationPoint = GameObject.LOC_BC;
-  let tmp_cow_file = FileLoader.Instance().getFile("assets/cow.png");
-  tmp_obj.setImage("assets/cow.png", tmp_cow_file);
-  let tmp_x = Math.random() * (in_window.windowElement.clientWidth - (tmp_cow_file.naturalWidth * 1.2)) + (tmp_cow_file.naturalWidth * 0.6);
-  let tmp_y = Math.random() * (tmp_layer.horizonHeight - (tmp_cow_file.naturalHeight * 0.4)) + (tmp_cow_file.naturalHeight * 0.2);
-  tmp_obj.location = new Location(tmp_x, tmp_y, 0);
+  let tmp_file = FileLoader.Instance().getFile("assets/cow.png");
+  tmp_obj.setImage("assets/cow.png", tmp_file);
+  let tmp_x = Math.random() * (in_window.windowElement.clientWidth - (tmp_file.naturalWidth * 1.2)) + (tmp_file.naturalWidth * 0.6);
+  let tmp_y = Math.random() * (tmp_layer.horizonHeight - (tmp_file.naturalHeight * 0.4)) + (tmp_file.naturalHeight * 0.2);
+  tmp_obj.location = new Location(tmp_x, tmp_y, 8);
   tmp_layer.addObject(tmp_obj);
 
+
+  //let's put some grass down.
+  let tmp_grass_s = 10;
+  let tmp_grass_l = 2;
+
+  let tmp_rand;
+  let tmp_file_name;
+  let i = 0;
+  for (i=0; i<tmp_grass_s; i++) {
+    //make a small grass!
+    tmp_obj = new GameObject();
+    tmp_obj.locationPoint = GameObject.LOC_BC;
+    tmp_rand = Math.floor(Math.random() * GRASS_S_OPTIONS) + 1;
+    tmp_file_name = GRASS_S_NAME + (tmp_rand < 10? "0" : "") + tmp_rand + "." + IMG_TYPE;
+    tmp_obj.setImage(tmp_file_name, FileLoader.Instance().getFile(tmp_file_name));
+    tmp_obj.location = new Location(Math.round(Math.random() * 800), Math.round(Math.random() * 400), Math.round(Math.random() * 20));
+    tmp_layer.addObject(tmp_obj);
+  }
 
   return tmp_layer;
 }
