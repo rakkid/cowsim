@@ -1950,15 +1950,22 @@ function pastureLayerBuild(in_window) {
   tmp_obj.locationPoint = GameObject.LOC_BC;
   let tmp_file = FileLoader.Instance().getFile("assets/cow.png");
   tmp_obj.setImage("assets/cow.png", tmp_file);
-  let tmp_x = Math.random() * (in_window.windowElement.clientWidth - (tmp_file.naturalWidth * 1.2)) + (tmp_file.naturalWidth * 0.6);
-  let tmp_y = Math.random() * (tmp_layer.horizonHeight - (tmp_file.naturalHeight * 0.4)) + (tmp_file.naturalHeight * 0.2);
-  tmp_obj.location = new Location(tmp_x, tmp_y, 8);
+  //let tmp_x = Math.random() * (in_window.windowElement.clientWidth - (tmp_file.naturalWidth * 1.2)) + (tmp_file.naturalWidth * 0.6);
+  //let tmp_y = Math.random() * (tmp_layer.horizonHeight - (tmp_file.naturalHeight * 0.4)) + (tmp_file.naturalHeight * 0.2);
+  tmp_obj.location = new Location(40, 0, 5);
   tmp_layer.addObject(tmp_obj);
 
 
   //let's put some grass down.
-  let tmp_grass_s = 0;
+  let tmp_grass_s = 20;
   let tmp_grass_l = 2;
+
+  const tmp_h_min = 20;
+  const tmp_h_max = 60;
+  const tmp_z_min = -40;
+  const tmp_z_max = 10;
+  const tmp_h_dif = tmp_h_max - tmp_h_min;
+  const tmp_z_dif = tmp_z_max - tmp_z_min;
 
   let tmp_rand;
   let tmp_file_name;
@@ -1970,7 +1977,7 @@ function pastureLayerBuild(in_window) {
     tmp_rand = Math.floor(Math.random() * GRASS_S_OPTIONS) + 1;
     tmp_file_name = GRASS_S_NAME + (tmp_rand < 10? "0" : "") + tmp_rand + "." + IMG_TYPE;
     tmp_obj.setImage(tmp_file_name, FileLoader.Instance().getFile(tmp_file_name));
-    tmp_obj.location = new Location(Math.round(Math.random() * 20 + 10), 0, Math.round(Math.random() * 20 - 20));
+    tmp_obj.location = new Location(Math.round(Math.random() * tmp_h_dif + tmp_h_min), 0, Math.round(Math.random() * tmp_z_dif + tmp_z_min));
     tmp_layer.addObject(tmp_obj);
   }
 
