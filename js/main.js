@@ -235,7 +235,9 @@ class InputHandler {
 
   //stored buttons..  I'm not going to do modifiers like Command+S, Shift+S, etc..  All button presses here are individual.
   #current = [];
+  #currentMap = new Map();
   #completed = [];
+  #completedMap = new Map();
   #all = [];
   #overlayElement;
   #allHTMLElements = [];
@@ -330,6 +332,7 @@ class InputHandler {
           //greate!  it wasn't found.  we create it and add it!
           tmp_pressed = new InputAction(InputAction.TYPE_KEY, inn_event.code, tmp_now);
           this.#current.push(tmp_pressed);
+          this.#currentMap.set(tmp_pressed.name, tmp_pressed);
           //we also need to add it to all!
           this.#all.push(tmp_pressed);
           //and we KNOW the index in all (last location), so we can save that!
@@ -364,7 +367,10 @@ class InputHandler {
       }
       //now, we need to remove the guy from completed, and put it back into current!
       this.#completed.splice(tmp_pressed_index, 1);
+      this.#completedMap.delete(tmp_pressed.name);
       this.#current.push(tmp_pressed);
+      this.#currentMap.set(tmp_pressed.name, tmp_pressed);
+
 
       //now draw/update the overlay!
       this.#drawOverlay(tmp_all_index, tmp_pressed);
@@ -413,6 +419,7 @@ class InputHandler {
           tmp_pressed = new InputAction(InputAction.TYPE_KEY, inn_event.code, tmp_now);
           tmp_pressed.released = true;
           this.#completed.push(tmp_pressed);
+          this.#completedMap.set(tmp_pressed.name, tmp_pressed);
           //we also need to add it to all!
           this.#all.push(tmp_pressed);
           //and we KNOW the index in all (last location), so we can save that!
@@ -432,8 +439,10 @@ class InputHandler {
       tmp_pressed.released = true;
       //remove from current (that's what we need the index for...)
       this.#current.splice(tmp_pressed_index, 1);
+      this.#currentMap.delete(tmp_pressed.name);
       //and add it to completed!
       this.#completed.push(tmp_pressed);
+      this.#completedMap.set(tmp_pressed.name, tmp_pressed);
 
       //now draw/update the overlay!  tmp_all_index is -1...
       this.#drawOverlay(tmp_all_index, tmp_pressed);
@@ -554,7 +563,37 @@ class InputHandler {
   }
 
   //all our accessors to see what inputs were inputted!
+  checkIsDown(in_action) {
+    //check our down buttons for this one..  I guess I should have a hash?  I dunno..
+    let tmp_input = this.#currentMap.get(in_action);
+    if (tmp_input) {
+      //great!  TRUE!
+      return true;
+    }
+    return false;
+  }
+  checkWasDown(in_action) {
+    let tmp_input = this.#currentMap.get(in_action);
+    if (tmp_input) {
+      //great!  TRUE!  check if it was just deactivated?
+      if (tmp_input.released) {
+        //it was just released this frame!  true!
+        return true;
+      }
+    }
+    return false;
+  }
+
+  //wipe anything that is "just released"
+  lateUpdate() {
+    this.#completed.forEach(vv_cur => {
+      if (vv_cur.released) {
+        vv_cur.released = false
+      });
+  }
 }
+//TODO add callbacks / listeners for anything that cares about input..  then I don't need to waste time 
+//  checking for input that isn't there?
 
 //class for animated actions of objects?  I dunoo.....
 class Animation {
@@ -584,6 +623,17 @@ class Location {
   }
   get z() {
     return this.#z;
+  }
+
+  equals(in_other) {
+    if (in_other instanceof Location) {
+      if (this.#x === in_other.x && this.#y === in_other.y && this.#z === this.z) {
+        //they are identical!
+        return true;
+      }
+    }
+    //else..
+    return false;
   }
 }
 
@@ -816,6 +866,131 @@ class GameObject {
     return this.#naturalSize;
   }
 }
+
+//Let's turn a camera into an object..
+//Do I have the camera track an object?  Liiike, our cow?  follow our cow!
+//TODO:  As we track our object, I also want us to have boundaries... so, for example, if we go all the way to
+//  the front, tracked object (cow) might come a bit closer to the screen.  Or if we hit an edge left/right.
+//  Maybe even back..?  Maybe..
+class Camera {
+  #trackObject = null;
+  #location = null;
+  #locationOffset;
+  #boundary;
+  #movementSpeed = 10;  //10 per second..??
+  #lastTrackedLoc = null;
+  //soo... for offset, I technically don't use the Y value of the camera in the SceneScaler..  I probably should..
+  //  I have in the constructor a value of how high up from the ground the camera is ---  wait a minute.  I DON'T??
+  //  WTF.  My brain is thrashed.  I so had this figured out yesterday when I created it, and today I no idea.
+  //  Classic!  Hmm.. well, whoknowswhatever.  I'll have to figure it out and come back and update this comment.
+  constructor(in_object, in_offset) {
+    if (in_object instanceof GameObject) {
+      //track this 
+      this.#trackObject = in_object;
+      this.#locationOffset = in_offset;
+    }
+    else {
+      this.#location = in_object;
+    }
+  }
+
+  begin() {
+    //set our 
+  }
+  earlyUpdate() {
+    //I think we need this..  update camera here...  cause then everything else is drawn to the camera in update!
+    //only do this if location isn't null.
+    if (this.#location != null) {
+      let tmp_x = this.#location.x;
+      let tmp_y = this.#location.y;
+      let tmp_z = this.#location.z;
+      //check if button presses!
+      if (InputHandler.Instance().checkIsDown("ArrowLeft")) {
+        //we going leeeft
+        tmp_x -= (Game.Instance().gameTimer.timeElapsed / 1000) * this.movementSpeed;
+        //now make sure we haven't gone past an edge..
+        if (this.#boundary && tmp_x < this.#boundary.left) {
+          tmp_x = this.#boundary.left;
+        }
+      }
+      if (InputHandler.Instance().checkIsDown("ArrowRight")) {
+        //we going right
+        tmp_x += (Game.Instance().gameTimer.timeElapsed / 1000) * this.movementSpeed;
+        //now make sure we haven't gone past an edge..
+        if (this.#boundary && tmp_x > this.#boundary.right) {
+          tmp_x = this.#boundary.right;
+        }
+      }
+      if (InputHandler.Instance().checkIsDown("ArrowDown")) {
+        //we going out toward front
+        tmp_z += (Game.Instance().gameTimer.timeElapsed / 1000) * this.movementSpeed;
+        //now make sure we haven't gone past an edge..
+        if (this.#boundary && tmp_z > this.#boundary.front) {
+          tmp_z = this.#boundary.front;
+        }
+      }
+      if (InputHandler.Instance().checkIsDown("ArrowUp")) {
+        //we going innnn
+        tmp_z -= (Game.Instance().gameTimer.timeElapsed / 1000) * this.movementSpeed;
+        //now make sure we haven't gone past an edge..
+        if (this.#boundary && tmp_z < this.#boundary.rear) {
+          tmp_z = this.#boundary.rear;
+        }
+      }
+      //now update our location!
+      this.#location = new Location(tmp_x, tmp_y, tmp_z);
+    }
+  }
+  update() {
+
+  }
+  lateUpdate() {
+
+  }
+  delete() {}
+
+  set boundary(in_value) {
+    this.#boundary = in_value;
+  }
+
+  get location() {
+    //IF we have a boundary, then we need to limit our movement!  Make sure we don't follow tracked 
+    //  object outside the boundary!
+    if (trackObject != null) {
+      //check last tracked..
+      if (this.#lastTrackedLoc != null && this.#lastTrackedLoc.equals(this.#trackObject.location)) {
+        //they're the same.. so nothing has changed, so we can just return it.
+        return this.#lastTrackedLoc;
+      }
+      //should I store last location?  And if it hasn't changed, just return it?
+      //return the offset of tracked object!
+      //I think just add..  object location is -10.  Our offset is 30.  -10+30 = 20.  Yup.
+      //Most likely, x offset will be zero, z will be like -30 or so??  I don't know yet.
+      let tmp_x = this.#trackObject.location.x + in_offset.x;
+      let tmp_y = this.#trackObject.location.y + in_offset.y;
+      let tmp_z = this.#trackObject.location.z + in_offset.z;
+      if (this.#boundary && tmp_x < this.#boundary.left) {
+        tmp_x = this.#boundary.left;
+      }
+      if (this.#boundary && tmp_x > this.#boundary.right) {
+        tmp_x = this.#boundary.right;
+      }
+      if (this.#boundary && tmp_z > this.#boundary.front) {
+        tmp_z = this.#boundary.front;
+      }
+      if (this.#boundary && tmp_z < this.#boundary.rear) {
+        tmp_z = this.#boundary.rear;
+      }
+      this.#lastTrackedLoc = new Location(tmp_x, tmp_y, tmp_z)
+      return this.#lastTrackedLoc;
+    }
+    //else..
+    return this.#location;
+  }
+}
+
+//need a game space / boarder area where the cow can't go out of..
+//  and a camera will have a min left/right distance and a min far distance, perhaps.
 
 //this badboy converts GAME locations to visual/screen/SCENE locations in our GameWindow!
 //A SceneLayer can use multiple of these to adjust different depths different..
@@ -1953,9 +2128,9 @@ function pastureLayerBuild(in_window) {
               in_z_distance_begin_scaling,
               in_scene_size) {
   */
-  let tmp_scaler = new SceneScaler(40, 40 * (9/12),
-                                    600, 600 * (9/12),
-                                    0, -600, -60,
+  let tmp_scaler = new SceneScaler(10, 10 * (9/12),
+                                    100, 100 * (9/12),
+                                    0, -100, -60,
                                     0, 0, tmp_layer.horizonHeight,
                                     -30, in_window.size);
   console.log("ADDINGGGG!!  SCENE SCALER");
@@ -1970,14 +2145,14 @@ function pastureLayerBuild(in_window) {
   tmp_layer.addStaticObjectToHorizon(tmp_obj, SceneLayer.TOP, -1);
 
   //le moo!
-  for (let i=0; i<6; i++) {
+  for (let i=0; i<15; i++) {
   tmp_obj = new GameObject();
   tmp_obj.locationPoint = GameObject.LOC_BC;
   let tmp_file = FileLoader.Instance().getFile("assets/cow.png");
   tmp_obj.setImage("assets/cow.png", tmp_file);
   //let tmp_x = Math.random() * (in_window.windowElement.clientWidth - (tmp_file.naturalWidth * 1.2)) + (tmp_file.naturalWidth * 0.6);
   //let tmp_y = Math.random() * (tmp_layer.horizonHeight - (tmp_file.naturalHeight * 0.4)) + (tmp_file.naturalHeight * 0.2);
-  tmp_obj.location = new Location(40, 0, 10 - (1*i));
+  tmp_obj.location = new Location(40, 0, 10 - (2*i));
   tmp_layer.addObject(tmp_obj);
   }
   tmp_obj = new GameObject();
