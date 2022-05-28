@@ -918,6 +918,8 @@ class SceneScaler {
   //Here we are, folks!!  take in the center point of the scene and a location, and it converts that
   //  location into a scene location/position!
   calcScenePosition(in_loc, in_center) {
+          console.log("---------------------");
+
     console.log("gameLocation: " + in_loc.x + ", " + in_loc.y + ", " + in_loc.z);
     console.log("centLocation: " + in_center.x + ", " + in_center.y + ", " + in_center.z);
     let tmp_x = 0;
@@ -928,6 +930,7 @@ class SceneScaler {
     //NOTE: #zDistance is NEGATIVE.  But in_loc_z is always smaller than zLocationFront, so we'll get
     //  a negative number there, too...  neg divided neg equals postive.  which we want.  So we are GOOD!
     this.#tmp_ratio = (in_loc.z - (in_center.z + this.#zLocationFront)) / this.#zDistance;
+    console.log("zratio " + this.#tmp_ratio);
 
     //Here's our X / horizontal location
     //now we can get the horizontal distance at that z depth..
@@ -1950,11 +1953,11 @@ function pastureLayerBuild(in_window) {
               in_z_distance_begin_scaling,
               in_scene_size) {
   */
-  let tmp_scaler = new SceneScaler(20, 20 * (9/12),
+  let tmp_scaler = new SceneScaler(40, 40 * (9/12),
                                     600, 600 * (9/12),
-                                    0, -15, -15,
+                                    0, -600, -60,
                                     0, 0, tmp_layer.horizonHeight,
-                                    0, in_window.size);
+                                    -30, in_window.size);
   console.log("ADDINGGGG!!  SCENE SCALER");
   tmp_layer.addSceneScaler(tmp_scaler);
 
@@ -1977,6 +1980,14 @@ function pastureLayerBuild(in_window) {
   tmp_obj.location = new Location(40, 0, 10 - (1*i));
   tmp_layer.addObject(tmp_obj);
   }
+  tmp_obj = new GameObject();
+  tmp_obj.locationPoint = GameObject.LOC_BC;
+  let tmp_file = FileLoader.Instance().getFile("assets/cow.png");
+  tmp_obj.setImage("assets/cow.png", tmp_file);
+  //let tmp_x = Math.random() * (in_window.windowElement.clientWidth - (tmp_file.naturalWidth * 1.2)) + (tmp_file.naturalWidth * 0.6);
+  //let tmp_y = Math.random() * (tmp_layer.horizonHeight - (tmp_file.naturalHeight * 0.4)) + (tmp_file.naturalHeight * 0.2);
+  tmp_obj.location = new Location(40, 0, -50);
+  tmp_layer.addObject(tmp_obj);
 
 
   //let's put some grass down.
