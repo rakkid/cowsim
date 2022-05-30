@@ -30,6 +30,8 @@ const FLOWER_OPTIONS = 4;
 const TREE_OPTIONS = 4;
 const GROUND_EFFECTS_OPTIONS = 4;
 
+const FPS_FPS = 30;
+
 class GameTime {
   #beginTime;
   #lastTime;
@@ -120,6 +122,15 @@ class Game {
 
   #elementTimeUpdate = null;
 
+  #runBegin = [];
+  #runEarlyUpdate = [];
+  #runUpdate = [];
+  #runLateUpdate = [];
+
+  #gameWindow;
+  #charWindow;
+  //other window(s)...
+
   constructor(in_FPS) {
     this.#gameTime = new GameTime();
     this.#gameTimer = new GameTimer();
@@ -169,6 +180,19 @@ class Game {
     }
     this.#elementTimeUpdate.innerText = this.#counter + " time elapsed: " + this.#gameTimer.timeElapsed + ", target: " + this.#targetFrameTime;
 
+    //now go through all our objects....
+    //first any begins...
+    this.#runBegin.forEach(vv_object => vv_object.begin());
+    //now we can clear our begin list.
+    this.#runBegin.length = 0;  //we'll go with this one..
+    //this.#runBegin = [];  //this works, too..
+
+    //TODO: check if each one is disabled, deleted, etc.. if so, extract from the list, and add to disabled
+    //  or deleted, etc list....  Then I guess we need to check if there are any undisabled?
+    //now go through all earlyUpdates, then updates, then lateUpdates.
+    this.#runEarlyUpdate.forEach(vv_object => vv_object.earlyUpdate());
+    this.#runUpdate.forEach(vv_object => vv_object.update());
+    this.#runLateUpdate.forEach(vv_object => vv_object.lateUpdate());
 
     //finally, we need to call the loop again!  using setTimeout!
     //we want to wait our target time - time to process.. (which is now - last time)
@@ -185,10 +209,48 @@ class Game {
     //this.#elementTimeUpdate.innerText = this.#counter + " time to sleep: " + tmp_remaining_time + ", target: " + this.#targetFrameTime;
     document.getElementById("elapsedTime").innerText = this.#totalTimeElapsed;
 
-    if (this.#counter < 30) {
+    if (this.#counter < 30 * FPS_FPS) {
      setTimeout(() => { this.gameLoop() }, tmp_remaining_time > 0 ? tmp_remaining_time : 0);
     }
     //the gameloop ends...
+  }
+
+  //sooOOOooo.... objects.  Game.  Every object handed here needs to be updated at some point.
+  //we can check it for earlyUpdate, update, and lateUpdate...
+  addObject(in_object) {
+    if (typeof in_object.begin === "function") { 
+        //it has the function!
+        this.#runBegin.push(in_object);
+        //umm... If it's begin, do we call begin AND update in the same loop??
+        //  a) if YES: add to all lists here.
+        //  b) if NO: only add to begin list, and then add to other lists after the loop where begin was called
+        //for the moment, we are doing A.
+    }
+    if (typeof in_object.earlyUpdate === "function") { 
+        //it has the function!
+        this.#runEarlyUpdate.push(in_object);
+    }
+    if (typeof in_object.update === "function") { 
+        //it has the function!
+        this.#runUpdate.push(in_object);
+    }
+    if (typeof in_object.lateUpdate === "function") { 
+        //it has the function!
+        this.#runLateUpdate.push(in_object);
+    }
+  }
+
+  set gameWindow(in_value) {
+    this.#gameWindow = in_value;
+  }
+  get gameWindow() {
+    return this.#gameWindow;
+  }
+  set characterWindow(in_value) {
+    this.#charWindow = in_value;
+  }
+  get characterWindow() {
+    return this.#charWindow;
   }
 }
 
@@ -573,7 +635,7 @@ class InputHandler {
     return false;
   }
   checkWasDown(in_action) {
-    let tmp_input = this.#currentMap.get(in_action);
+    let tmp_input = this.#completedMap.get(in_action);
     if (tmp_input) {
       //great!  TRUE!  check if it was just deactivated?
       if (tmp_input.released) {
@@ -586,10 +648,11 @@ class InputHandler {
 
   //wipe anything that is "just released"
   lateUpdate() {
-    this.#completed.forEach(vv_cur => {
-      if (vv_cur.released) {
-        vv_cur.released = false
-      });
+    this.#completed.forEach(vv_obj => {
+      if (vv_obj.released) {
+        vv_obj.released = false;
+      }
+    });
   }
 }
 //TODO add callbacks / listeners for anything that cares about input..  then I don't need to waste time 
@@ -711,9 +774,13 @@ class GameObject {
     this.#deleted = false;
   }
 
-  begin() {}
-  update() {}
-  delete() {}
+  //OK!  GameObjects should implement these as needed!  The Game object determines which exist and only calls
+  //  those objects.  Makes things faster.
+  //begin() {}
+  //earlyUpdate() {}
+  //update() {}
+  //lateUpdate() {}
+  //delete() {}
 
   resetLocChange() {
     this.#locChange = false;
@@ -761,6 +828,7 @@ class GameObject {
       throw "GameObject.location must be a Location object!";
     }
     this.#locChange = true;
+    console.log("LOCATION CHANGE!!");
     this.#location = in_value;
   }
   get location() {
@@ -900,6 +968,8 @@ class Camera {
   earlyUpdate() {
     //I think we need this..  update camera here...  cause then everything else is drawn to the camera in update!
     //only do this if location isn't null.
+    //if it IS null, then we don't need to do anything, since we track an object, and we get that location when
+    //  the get location() accessor is called!
     if (this.#location != null) {
       let tmp_x = this.#location.x;
       let tmp_y = this.#location.y;
@@ -907,7 +977,7 @@ class Camera {
       //check if button presses!
       if (InputHandler.Instance().checkIsDown("ArrowLeft")) {
         //we going leeeft
-        tmp_x -= (Game.Instance().gameTimer.timeElapsed / 1000) * this.movementSpeed;
+        tmp_x -= (Game.Instance().timer.timeElapsed / 1000) * this.#movementSpeed;
         //now make sure we haven't gone past an edge..
         if (this.#boundary && tmp_x < this.#boundary.left) {
           tmp_x = this.#boundary.left;
@@ -915,7 +985,7 @@ class Camera {
       }
       if (InputHandler.Instance().checkIsDown("ArrowRight")) {
         //we going right
-        tmp_x += (Game.Instance().gameTimer.timeElapsed / 1000) * this.movementSpeed;
+        tmp_x += (Game.Instance().timer.timeElapsed / 1000) * this.#movementSpeed;
         //now make sure we haven't gone past an edge..
         if (this.#boundary && tmp_x > this.#boundary.right) {
           tmp_x = this.#boundary.right;
@@ -923,7 +993,7 @@ class Camera {
       }
       if (InputHandler.Instance().checkIsDown("ArrowDown")) {
         //we going out toward front
-        tmp_z += (Game.Instance().gameTimer.timeElapsed / 1000) * this.movementSpeed;
+        tmp_z += (Game.Instance().timer.timeElapsed / 1000) * this.#movementSpeed;
         //now make sure we haven't gone past an edge..
         if (this.#boundary && tmp_z > this.#boundary.front) {
           tmp_z = this.#boundary.front;
@@ -931,7 +1001,7 @@ class Camera {
       }
       if (InputHandler.Instance().checkIsDown("ArrowUp")) {
         //we going innnn
-        tmp_z -= (Game.Instance().gameTimer.timeElapsed / 1000) * this.movementSpeed;
+        tmp_z -= (Game.Instance().timer.timeElapsed / 1000) * this.#movementSpeed;
         //now make sure we haven't gone past an edge..
         if (this.#boundary && tmp_z < this.#boundary.rear) {
           tmp_z = this.#boundary.rear;
@@ -956,7 +1026,7 @@ class Camera {
   get location() {
     //IF we have a boundary, then we need to limit our movement!  Make sure we don't follow tracked 
     //  object outside the boundary!
-    if (trackObject != null) {
+    if (this.#trackObject != null) {
       //check last tracked..
       if (this.#lastTrackedLoc != null && this.#lastTrackedLoc.equals(this.#trackObject.location)) {
         //they're the same.. so nothing has changed, so we can just return it.
@@ -966,9 +1036,9 @@ class Camera {
       //return the offset of tracked object!
       //I think just add..  object location is -10.  Our offset is 30.  -10+30 = 20.  Yup.
       //Most likely, x offset will be zero, z will be like -30 or so??  I don't know yet.
-      let tmp_x = this.#trackObject.location.x + in_offset.x;
-      let tmp_y = this.#trackObject.location.y + in_offset.y;
-      let tmp_z = this.#trackObject.location.z + in_offset.z;
+      let tmp_x = this.#trackObject.location.x + this.#locationOffset.x;
+      let tmp_y = this.#trackObject.location.y + this.#locationOffset.y;
+      let tmp_z = this.#trackObject.location.z + this.#locationOffset.z;
       if (this.#boundary && tmp_x < this.#boundary.left) {
         tmp_x = this.#boundary.left;
       }
@@ -1345,7 +1415,7 @@ class SceneLayer {
   }
 
   //this goes through each gameObject and checks if we need to update the object's visual position..
-  update() {
+  lateUpdate() {
 
     let deletedObjs = [];
 
@@ -1372,18 +1442,21 @@ class SceneLayer {
 
         if (this.#sceneScalers.length > 0) {
           //we need to get its sceneLocation.. which sceneScaler does the object need?  Goes by size..
-          let tmp_scene_scale_info;
+          let tmp_scene_scale_info = null;
           for (let i=0; i<this.#sceneScalers.length; i++) {
-            if (this.#sceneScalers[i].zInRange(vv_object.location.z, this.#parentWindow.camera.z)) {
-              tmp_scene_scale_info = this.#sceneScalers[i].calcScenePosition(vv_object.location, this.#parentWindow.camera);
+            if (this.#sceneScalers[i].zInRange(vv_object.location.z, this.#parentWindow.camera.location.z)) {
+              tmp_scene_scale_info = this.#sceneScalers[i].calcScenePosition(vv_object.location, this.#parentWindow.camera.location);
             }
           }
-          //aaand give it its new infoz!
-          //first give it size scale...
-          //size scale.. umm... this is linear along z distance.
-          vv_object.sizeScale = this.#parentWindow.windowScale * tmp_scene_scale_info[0];
-          //now we can give it location.  it takes care of putting these numbers to its element.
-          vv_object.sceneLocation = tmp_scene_scale_info[1];
+          //if the object isn't in range, then... ummm...  don't draw it??
+          if (tmp_scene_scale_info != null) {
+            //aaand give it its new infoz!
+            //first give it size scale...
+            //size scale.. umm... this is linear along z distance.
+            vv_object.sizeScale = this.#parentWindow.windowScale * tmp_scene_scale_info[0];
+            //now we can give it location.  it takes care of putting these numbers to its element.
+            vv_object.sceneLocation = tmp_scene_scale_info[1];
+          }
         }
         else {
           //we just use the basic stuff..
@@ -1650,7 +1723,7 @@ class FileLoader {
   loaded(in_element) {
     this.#numFilesLoaded += 1;
     let tmp_file_name = this.#elementToFileMap.get(in_element);
-    console.log("saving to map: " + tmp_file_name);
+    //console.log("saving to map: " + tmp_file_name);
     this.#fileMap.set(tmp_file_name, in_element);
   }
 
@@ -1665,12 +1738,12 @@ class FileLoader {
     tmp_loaded.onload = function() {
       URL.revokeObjectURL(this.src);
       FileLoader.Instance().loaded(this);
-      console.log("file has loaded.. " + FileLoader.Instance().loadingComplete + ", " + FileLoader.Instance().okToContinue);
+      //console.log("file has loaded.. " + FileLoader.Instance().loadingComplete + ", " + FileLoader.Instance().okToContinue);
       if (FileLoader.Instance().loadingComplete && FileLoader.Instance().okToContinue) {
         next();
       }
       else {
-        console.log("not yet.. " + FileLoader.Instance().okToContinue);
+        //console.log("not yet.. " + FileLoader.Instance().okToContinue);
       }
     }
   }
@@ -1800,6 +1873,9 @@ class PreloadHandler {
 //  want to repeat an img...  SOOooo....  I guess its time to build our own.
 //It'll take in a specific scaling, its parent element (to get size), and the image to use.  It'll scale itself
 //  (which will really be a bunch of images)
+//TODO Make imperfection tiles and add them..  make liiike 1/4 size tiles of our normal one (100x100).  Have a 
+//  perfect one, and then make a whole bunch of different imperfections.  Then can add one, and the other 3 tiles
+//  can be perfects (or even another imperfection).
 class CanvasOverlay {
   #image;
   #imageElement;
@@ -1881,7 +1957,7 @@ class CanvasOverlay {
     };
     */
 
-    console.log(this.#parent.clientWidth + ", " + this.#imageElement.naturalWidth + ", " + this.#scale);
+    //console.log(this.#parent.clientWidth + ", " + this.#imageElement.naturalWidth + ", " + this.#scale);
 
     const tmp_horizontal = this.#parent.clientWidth / (this.#imageElement.naturalWidth * this.#scale);
     const tmp_vertical = this.#parent.clientHeight / (this.#imageElement.naturalHeight * this.#scale);
@@ -1889,7 +1965,7 @@ class CanvasOverlay {
     const tmp_v_rem = this.#parent.clientHeight - (this.#imageElement.naturalHeight * this.#scale) * Math.floor(tmp_vertical);
     //aand now I need to add this many...
 
-    console.log(tmp_horizontal + " x " + tmp_vertical + " rem: " + tmp_h_rem + " x " + tmp_v_rem);
+    //console.log(tmp_horizontal + " x " + tmp_vertical + " rem: " + tmp_h_rem + " x " + tmp_v_rem);
 
     if (1 < 4) {
       //return
@@ -1910,7 +1986,7 @@ class CanvasOverlay {
         tmp_element.style.position = "absolute";
         tmp_element.style.top = (i*tmp_size) + "px";
         tmp_element.style.left = (j*tmp_size) + "px";
-        console.log("natural size is " + tmp_element.naturalWidth);
+        //console.log("natural size is " + tmp_element.naturalWidth);
         this.#canvasElement.appendChild(tmp_element);
 
         //if this is the left edge (j = 0), then we also need to put our edge graphic
@@ -1974,6 +2050,129 @@ class CanvasOverlay {
     this.#parent.appendChild(this.#canvasElement);
   }
 }
+
+class Boundary {
+  #left;
+  #right;
+  #front;
+  #back;
+
+  constructor(in_left, in_right, in_front, in_back) {
+    this.#left = in_left;
+    this.#right = in_right;
+    this.#front = in_front;
+    this.#back = in_back;
+  }
+
+  get left() {
+    return this.#left;
+  }
+  get right() {
+    return this.#right;
+  }
+  get front() {
+    return this.#front;
+  }
+  get back() {
+    return this.#back;
+  }
+}
+
+//---===---===---===---===---
+//  Game Objects!  ....?
+//---===---===---===---===---
+
+//--------------------
+//   COW
+//--------------------
+//What's a cooowwwwww?
+class Cow extends GameObject {
+  #boundary;
+
+  constructor() {
+    //we can probably pick the cow image here..  some kind of cow builder for all cows.
+    super();
+    this.#boundary = new Boundary(0, 60, 0, -60);
+  }
+
+  //cow definitely needs an udpate.  To mooOOOooove!
+  //Cows will, umm...  move along slowly..  will they eat real grass?  Or do they not really need
+  //  to eat.. so we can have them visually eat, but not take away the sweet sweet precious blades
+  //  of grass our sim cow needs to survive and thrive!
+  update() {
+
+  }
+
+}
+
+//Here's the cow we actually control!  Umm... Do I have it extend cow??  Will I give every cow 
+//  different personas?  I guess I could..  but maybe I just want them to be more normal cows..
+//For the mooment, this guy will be its own thing.
+class ControllableCow extends GameObject {
+  #boundary;
+  #movementSpeed = 10;
+
+  constructor() {
+    //we can probably pick the cow image here..  some kind of cow builder for all cows.
+    super();
+    this.#boundary = new Boundary(0, 60, 0, -60);
+  }
+
+  //cow definitely needs an udpate.  To mooOOOooove!
+  update() {
+    console.log("CON COW  UPDTAE!!");
+    //for the moooment, I'm just gonna check presses from heeeere.
+    let tmp_x = super.location.x;
+    let tmp_y = super.location.y;
+    let tmp_z = super.location.z;
+    //check if button presses!
+    if (InputHandler.Instance().checkIsDown("ArrowLeft")) {
+      console.log("LEFT PRESSED!");
+      //we going leeeft
+      tmp_x -= (Game.Instance().timer.timeElapsed / 1000) * this.#movementSpeed;
+      //now make sure we haven't gone past an edge..
+      if (this.#boundary && tmp_x < this.#boundary.left) {
+        tmp_x = this.#boundary.left;
+      }
+        console.log("new X! " + tmp_x);
+    }
+    if (InputHandler.Instance().checkIsDown("ArrowRight")) {
+      //we going right
+      tmp_x += (Game.Instance().timer.timeElapsed / 1000) * this.#movementSpeed;
+      //now make sure we haven't gone past an edge..
+      if (this.#boundary && tmp_x > this.#boundary.right) {
+        tmp_x = this.#boundary.right;
+      }
+    }
+    if (InputHandler.Instance().checkIsDown("ArrowDown")) {
+      //we going out toward front
+      tmp_z += (Game.Instance().timer.timeElapsed / 1000) * this.#movementSpeed;
+      //now make sure we haven't gone past an edge..
+      if (this.#boundary && tmp_z > this.#boundary.front) {
+        tmp_z = this.#boundary.front;
+      }
+    }
+    if (InputHandler.Instance().checkIsDown("ArrowUp")) {
+      //we going innnn
+      tmp_z -= (Game.Instance().timer.timeElapsed / 1000) * this.#movementSpeed;
+      //now make sure we haven't gone past an edge..
+      if (this.#boundary && tmp_z < this.#boundary.rear) {
+        tmp_z = this.#boundary.rear;
+      }
+    }
+    //now update our location!
+    super.location = new Location(tmp_x, tmp_y, tmp_z);
+  }
+
+  //Cow needs to know when we move..  How'm I doing this??  In update?  Or do I do some register-ee shit?  Or
+  //  even something like: "onKeyDown" and "onKeyUp"  and in Game, also look for those fuckers!  Probably should
+  //  do that....
+  //TODO
+}
+
+//---===---===---===---===---
+//  END Game Objects
+//---===---===---===---===---
 
 const pastureList = [];
 const farFieldList = [];
@@ -2133,7 +2332,7 @@ function pastureLayerBuild(in_window) {
                                     0, -100, -60,
                                     0, 0, tmp_layer.horizonHeight,
                                     -30, in_window.size);
-  console.log("ADDINGGGG!!  SCENE SCALER");
+  //console.log("ADDINGGGG!!  SCENE SCALER");
   tmp_layer.addSceneScaler(tmp_scaler);
 
   tmp_obj = new GameObject();
@@ -2154,8 +2353,11 @@ function pastureLayerBuild(in_window) {
   //let tmp_y = Math.random() * (tmp_layer.horizonHeight - (tmp_file.naturalHeight * 0.4)) + (tmp_file.naturalHeight * 0.2);
   tmp_obj.location = new Location(40, 0, 10 - (2*i));
   tmp_layer.addObject(tmp_obj);
+  if (i == 0) {
+      in_window.camera = new Camera(tmp_obj, new Location(0, 0, 25));
   }
-  tmp_obj = new GameObject();
+  }
+  tmp_obj = new ControllableCow();
   tmp_obj.locationPoint = GameObject.LOC_BC;
   let tmp_file = FileLoader.Instance().getFile("assets/cow.png");
   tmp_obj.setImage("assets/cow.png", tmp_file);
@@ -2163,6 +2365,11 @@ function pastureLayerBuild(in_window) {
   //let tmp_y = Math.random() * (tmp_layer.horizonHeight - (tmp_file.naturalHeight * 0.4)) + (tmp_file.naturalHeight * 0.2);
   tmp_obj.location = new Location(40, 0, -50);
   tmp_layer.addObject(tmp_obj);
+  Game.Instance().addObject(tmp_obj);
+  //ohhh.... something's messsssssed upppppp.  Cows be everywhere when this is close to the cow.  (since this is the far cow)
+  in_window.camera = new Camera(tmp_obj, new Location(0, 0, 40));
+  //give the camera a boundary...?
+  in_window.camera.boundary = new Boundary (20, 780, 20, -760);
 
 
   //let's put some grass down.
@@ -2228,7 +2435,7 @@ InputHandler.Instance().draw = true;
 
 //our loooop
 //start the game loop!!  (it repeats itself)
-game.targetFPS = 1;
+game.targetFPS = FPS_FPS;
 game.gameLoop();
 
 //how do we get the screen width and height??
@@ -2237,10 +2444,17 @@ let tmp_screen_height = document.body.clientHeight;
 //alert("h x w: " + tmp_screen_height + " x " + tmp_screen_width);
 
 let gameWindow = new GameWindow(document.documentElement, 0, 0.18, 12/9);
+Game.Instance().gameWindow = gameWindow;
 gameWindow.buildWindow();
 //it needs a camera..  I don't think I did anything that actually requires the camera's Y value...
 //  this is a "game" location.
-gameWindow.camera = new Location(40, 10, 10);
+//TODO:
+//  1) Camera tracks Cow!
+//  2) Camera gets boundaries
+//  3) Cow gets movement
+//  4) Profit!  (Maybe it'll work!)
+gameWindow.camera = new Camera(new Location(40, 10, 10));
+//TODO: maybe if we change cameras, have a flat that "flies" the camera to the new location?
 
 let charWindow = new GameWindow(gameWindow.windowElement, 0.3, 0, 3/2);
 //let adWindow = new GameWindow(gameWindow.windowElement, 0.25, 0, 3/2);
@@ -2249,6 +2463,7 @@ let charWindow = new GameWindow(gameWindow.windowElement, 0.3, 0, 3/2);
 charWindow.location = [gameWindow.windowElement.getBoundingClientRect().left, 
     (gameWindow.windowElement.getBoundingClientRect().top - charWindow.size.height) * .35];
 charWindow.buildWindow();
+Game.Instance().characterWindow = charWindow;
 
 //here's our canvas overlay..
 //let tmp_canvas = document.createElement("img");
@@ -2319,7 +2534,12 @@ function imagesLoaded() {
   //console.log("picked hills:");
   //tmp_hills.forEach(vv_img => console.log(vv_img));
   //tmp_sky_scene.update();
-  tmp_hill_scene.update();
-  tmp_farfield_scene.update();
-  tmp_pasture_scene.update();
+  //tmp_hill_scene.update();
+  //tmp_farfield_scene.update();
+  //tmp_pasture_scene.update();
+  Game.Instance().addObject(tmp_sky_scene);
+  Game.Instance().addObject(tmp_hill_scene);
+  Game.Instance().addObject(tmp_farfield_scene);
+  Game.Instance().addObject(tmp_pasture_scene);
+
 }
