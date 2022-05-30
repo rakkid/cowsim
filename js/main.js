@@ -946,7 +946,8 @@ class Camera {
   #locationOffset;
   #boundary;
   #movementSpeed = 10;  //10 per second..??
-  #lastTrackedLoc = null;
+  #trackedLoc = null;
+  #trackedLocCheckedThisFrame = false;
   //soo... for offset, I technically don't use the Y value of the camera in the SceneScaler..  I probably should..
   //  I have in the constructor a value of how high up from the ground the camera is ---  wait a minute.  I DON'T??
   //  WTF.  My brain is thrashed.  I so had this figured out yesterday when I created it, and today I no idea.
@@ -956,6 +957,9 @@ class Camera {
       //track this 
       this.#trackObject = in_object;
       this.#locationOffset = in_offset;
+      this.#setTrackedLocation();
+      //aand.. I guess we say we checked the location this timme...?
+      this.#trackedLocCheckedThisFrame = true;
     }
     else {
       this.#location = in_object;
@@ -966,6 +970,10 @@ class Camera {
     //set our 
   }
   earlyUpdate() {
+    //reset our trackedLoc checked this frame!
+    this.#trackedLocCheckedThisFrame = false;
+  }
+  update() {
     //I think we need this..  update camera here...  cause then everything else is drawn to the camera in update!
     //only do this if location isn't null.
     //if it IS null, then we don't need to do anything, since we track an object, and we get that location when
@@ -1023,17 +1031,8 @@ class Camera {
     this.#boundary = in_value;
   }
 
-  get location() {
-    //IF we have a boundary, then we need to limit our movement!  Make sure we don't follow tracked 
-    //  object outside the boundary!
-    if (this.#trackObject != null) {
-      //check last tracked..
-      if (this.#lastTrackedLoc != null && this.#lastTrackedLoc.equals(this.#trackObject.location)) {
-        //they're the same.. so nothing has changed, so we can just return it.
-        return this.#lastTrackedLoc;
-      }
-      //should I store last location?  And if it hasn't changed, just return it?
-      //return the offset of tracked object!
+  #setTrackedLocation() {
+      //calc the offset of tracked object!
       //I think just add..  object location is -10.  Our offset is 30.  -10+30 = 20.  Yup.
       //Most likely, x offset will be zero, z will be like -30 or so??  I don't know yet.
       let tmp_x = this.#trackObject.location.x + this.#locationOffset.x;
@@ -1051,8 +1050,28 @@ class Camera {
       if (this.#boundary && tmp_z < this.#boundary.rear) {
         tmp_z = this.#boundary.rear;
       }
-      this.#lastTrackedLoc = new Location(tmp_x, tmp_y, tmp_z)
-      return this.#lastTrackedLoc;
+      this.#trackedLoc = new Location(tmp_x, tmp_y, tmp_z)
+
+  }
+  get location() {
+    //IF we have a boundary, then we need to limit our movement!  Make sure we don't follow tracked 
+    //  object outside the boundary!
+    if (this.#trackObject != null) {
+      //check last tracked..
+      if (this.#trackedLocCheckedThisFrame) {
+        //we can just send back the tracked loc!
+        return this.#trackedLoc;
+      }
+      //hasn't been checked this frame!
+      if (this.#trackedLoc != null && this.#trackedLoc.equals(this.#trackObject.location)) {
+        //they're the same.. so nothing has changed, so we can just return it.
+        this.#trackedLocCheckedThisFrame = true;
+        return this.#trackedLoc;
+      }
+      //okay.. they are different. we need to update our tracked location!
+      this.#setTrackedLocation();
+      this.#trackedLocCheckedThisFrame = true;
+      return this.#trackedLoc;
     }
     //else..
     return this.#location;
@@ -1419,6 +1438,12 @@ class SceneLayer {
 
     let deletedObjs = [];
 
+    //check if there was a view change??
+    //maybe I don't need this now.
+//    if (this.#parentWindow.viewChange) {
+
+//    }
+
     this.#gameObjects.forEach((vv_object, vv_index, vv_array) => {
       //if it's deleted, BYE!
       if (vv_object.deleted) {
@@ -1433,6 +1458,9 @@ class SceneLayer {
       }
       //if the scene view changed OR the gameObject's location changed, then we need to update!
       else if (this.#parentWindow.viewChange || vv_object.locChange) {
+        console.log(" !!!!  viewChange: " + this.#parentWindow.viewChange + ", locChange: " + vv_object.locChange);
+        //we can reset the loc change
+        vv_object.resetLocChange();
         //check if its out of view??  Maybe move those to a different gameObject list?? well... we'd need to
         //  check if its back in view, anyway, sooo maybe not..
 
@@ -1528,7 +1556,9 @@ class GameWindow {
   #topLeftLoc = [0, 0];
 
   #camera;
-  #viewChange;
+  #lastCameraLoc;
+  #viewChange = false;
+  #viewChangeCheckedThisFrame = false;
 
   //maybe I don't even need a list of elements..?  Unless this guy determines what is and ISN'T visable..
   #elements = [];
@@ -1570,6 +1600,12 @@ class GameWindow {
     }
 
     this.#updateSize();
+  }
+
+  earlyUpdate() {
+    //reset our viewChange!
+    this.#viewChange = false;
+    this.#viewChangeCheckedThisFrame = false;
   }
 
   //TODO:  Ummm.....  when I created this with borderRatio, I had to make sure we were smaller on all 4 sides..
@@ -1681,6 +1717,23 @@ class GameWindow {
     return this.#windowScale;
   }
   get viewChange() {
+    //if we already know the answer, just send it!
+    if (this.#viewChangeCheckedThisFrame) {
+      return this.#viewChange;
+    }
+    //we haven't checked this frame yet..  compare camera's loc with our last loc of it.
+    if (this.#lastCameraLoc.equals(this.#camera.location)) {
+      //it's the same still.  no change.
+      this.#viewChangeCheckedThisFrame = true;
+      //technically we don't need to do this.. it should be false.  Unless I messed something up somewhere!
+      this.#viewChange = false;
+    }
+    else {
+      //change!
+      this.#viewChangeCheckedThisFrame = true;
+      this.#viewChange = true;
+      this.#lastCameraLoc = this.#camera.location;
+    }
     return this.#viewChange;
   }
   get camera() {
@@ -1688,6 +1741,10 @@ class GameWindow {
   }
   set camera(in_camera) {
     this.#camera = in_camera;
+    //new camera!  So it's a view change!
+    this.#viewChangeCheckedThisFrame = true;
+    this.#viewChange = true;
+    this.#lastCameraLoc = this.#camera.location;
   }
 }
 
@@ -2445,6 +2502,7 @@ let tmp_screen_height = document.body.clientHeight;
 
 let gameWindow = new GameWindow(document.documentElement, 0, 0.18, 12/9);
 Game.Instance().gameWindow = gameWindow;
+Game.Instance().addObject(gameWindow);
 gameWindow.buildWindow();
 //it needs a camera..  I don't think I did anything that actually requires the camera's Y value...
 //  this is a "game" location.
@@ -2453,7 +2511,7 @@ gameWindow.buildWindow();
 //  2) Camera gets boundaries
 //  3) Cow gets movement
 //  4) Profit!  (Maybe it'll work!)
-gameWindow.camera = new Camera(new Location(40, 10, 10));
+//gameWindow.camera = new Camera(new Location(40, 10, 10));
 //TODO: maybe if we change cameras, have a flat that "flies" the camera to the new location?
 
 let charWindow = new GameWindow(gameWindow.windowElement, 0.3, 0, 3/2);
