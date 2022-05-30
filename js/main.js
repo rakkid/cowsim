@@ -31,6 +31,7 @@ const TREE_OPTIONS = 4;
 const GROUND_EFFECTS_OPTIONS = 4;
 
 const FPS_FPS = 30;
+const SECONDS_TO_RUN = 6;
 
 class GameTime {
   #beginTime;
@@ -209,7 +210,7 @@ class Game {
     //this.#elementTimeUpdate.innerText = this.#counter + " time to sleep: " + tmp_remaining_time + ", target: " + this.#targetFrameTime;
     document.getElementById("elapsedTime").innerText = this.#totalTimeElapsed;
 
-    if (this.#counter < 30 * FPS_FPS) {
+    if (this.#counter < SECONDS_TO_RUN * FPS_FPS) {
      setTimeout(() => { this.gameLoop() }, tmp_remaining_time > 0 ? tmp_remaining_time : 0);
     }
     //the gameloop ends...
@@ -1443,6 +1444,7 @@ class SceneLayer {
 //    if (this.#parentWindow.viewChange) {
 
 //    }
+console.log("---!!!--- viewChange "+ this.#parentWindow.viewChange);
 
     this.#gameObjects.forEach((vv_object, vv_index, vv_array) => {
       //if it's deleted, BYE!
@@ -1603,6 +1605,7 @@ class GameWindow {
   }
 
   earlyUpdate() {
+    console.log("   ------ GAME WINDOW VIEW CHANGE RESET ------");
     //reset our viewChange!
     this.#viewChange = false;
     this.#viewChangeCheckedThisFrame = false;
@@ -1719,10 +1722,13 @@ class GameWindow {
   get viewChange() {
     //if we already know the answer, just send it!
     if (this.#viewChangeCheckedThisFrame) {
+      console.log("viewchange CHECKED! this frame: " + this.#viewChangeCheckedThisFrame);
       return this.#viewChange;
     }
+    console.log("viewchange NOT CHECKED!!");
     //we haven't checked this frame yet..  compare camera's loc with our last loc of it.
     if (this.#lastCameraLoc.equals(this.#camera.location)) {
+      console.log("   SAME LOC!!");
       //it's the same still.  no change.
       this.#viewChangeCheckedThisFrame = true;
       //technically we don't need to do this.. it should be false.  Unless I messed something up somewhere!
@@ -1730,6 +1736,7 @@ class GameWindow {
     }
     else {
       //change!
+      console.log("   SCHNAGE!!");
       this.#viewChangeCheckedThisFrame = true;
       this.#viewChange = true;
       this.#lastCameraLoc = this.#camera.location;
@@ -2427,6 +2434,7 @@ function pastureLayerBuild(in_window) {
   in_window.camera = new Camera(tmp_obj, new Location(0, 0, 40));
   //give the camera a boundary...?
   in_window.camera.boundary = new Boundary (20, 780, 20, -760);
+  Game.Instance().addObject(in_window.camera);
 
 
   //let's put some grass down.
