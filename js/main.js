@@ -31,7 +31,7 @@ const TREE_OPTIONS = 4;
 const GROUND_EFFECTS_OPTIONS = 4;
 
 const FPS_FPS = 30;
-const SECONDS_TO_RUN = 6;
+const SECONDS_TO_RUN = 5;
 
 class GameTime {
   #beginTime;
@@ -1113,6 +1113,9 @@ class SceneScaler {
   //the view window
   #sceneSize;
 
+  //I need a clipping window..  anything outside this area can be ignored
+  #clippingDistance;
+
   //let's save and reuse our temporary variables..
   #tmp_ratio;
   #tmp_dist;
@@ -1133,7 +1136,8 @@ class SceneScaler {
               in_horizon_height_rear, 
               in_horizon_height_at_horizon, 
               in_z_distance_begin_scaling,
-              in_scene_size) {
+              in_scene_size, 
+              in_clipping_distances) {
     this.#hDistanceFront = in_horizontal_distance_front;
     this.#hDistanceRear = in_horizontal_distance_rear;
     this.#vDistanceFront = in_vertical_distance_front;
@@ -1150,6 +1154,7 @@ class SceneScaler {
     //this.#horizonHeightAtHorizon = in_horizon_height_at_horizon;
     this.#zDistanceToBeginSizeScaling = in_z_distance_begin_scaling;
     this.#sceneSize = in_scene_size;
+    this.#clippingDistance = in_clipping_distances;
     console.log("hzHeight: " + in_horizon_height_at_horizon);
 
     //working with our z-distance as negative, let's say rear is -110, front is -40.
@@ -1186,6 +1191,19 @@ class SceneScaler {
 
     console.log("gameLocation: " + in_loc.x + ", " + in_loc.y + ", " + in_loc.z);
     console.log("centLocation: " + in_center.x + ", " + in_center.y + ", " + in_center.z);
+
+    //check if outside clipping zone!
+    //UMM... clipping distance z...  positive number means behind the camera..  toward the viewer.
+    if (in_loc.x < in_center.x - this.#clippingDistance.left ||
+        in_loc.x > in_center.x + this.#clippingDistance.right ||
+        in_loc.z > in_center.z + this.#clippingDistance.front ||
+        in_loc.z < in_center.z + this.#clippingDistance.rear) {
+      //object is outside clipping, we don't need to draw this guy
+      //TODO:  umm... flag something to disable it / remove from DOM?
+      console.log("  DO NOT CALC OR DRAW THIS GUY!");
+      return;
+    }
+
     let tmp_x = 0;
     let tmp_y = 0;
     let tmp_z = 0;
@@ -2382,7 +2400,8 @@ function pastureLayerBuild(in_window) {
                                     100, 100 * (9/12),
                                     0, -100, -60,
                                     0, 0, tmp_layer.horizonHeight,
-                                    -30, in_window.size);
+                                    -30, in_window.size,
+                                    new Boundary(50, 50, 10, -100));
   //console.log("ADDINGGGG!!  SCENE SCALER");
   tmp_layer.addSceneScaler(tmp_scaler);
 
@@ -2395,7 +2414,7 @@ function pastureLayerBuild(in_window) {
   tmp_layer.addStaticObjectToHorizon(tmp_obj, SceneLayer.TOP, -1);
 
   //le moo!
-  for (let i=0; i<15; i++) {
+  for (let i=0; i<1; i++) {
   tmp_obj = new GameObject();
   tmp_obj.locationPoint = GameObject.LOC_BC;
   let tmp_file = FileLoader.Instance().getFile("assets/cow.png");
@@ -2414,7 +2433,7 @@ function pastureLayerBuild(in_window) {
   tmp_obj.setImage("assets/cow.png", tmp_file);
   //let tmp_x = Math.random() * (in_window.windowElement.clientWidth - (tmp_file.naturalWidth * 1.2)) + (tmp_file.naturalWidth * 0.6);
   //let tmp_y = Math.random() * (tmp_layer.horizonHeight - (tmp_file.naturalHeight * 0.4)) + (tmp_file.naturalHeight * 0.2);
-  tmp_obj.location = new Location(40, 0, -50);
+  tmp_obj.location = new Location(40, 0, -20);
   tmp_layer.addObject(tmp_obj);
   Game.Instance().addObject(tmp_obj);
   //ohhh.... something's messsssssed upppppp.  Cows be everywhere when this is close to the cow.  (since this is the far cow)
