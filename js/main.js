@@ -691,7 +691,7 @@ class Location {
 
   equals(in_other) {
     if (in_other instanceof Location) {
-      if (this.#x === in_other.x && this.#y === in_other.y && this.#z === this.z) {
+      if (this.#x === in_other.x && this.#y === in_other.y && this.#z === in_other.z) {
         //they are identical!
         return true;
       }
