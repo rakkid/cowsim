@@ -829,7 +829,6 @@ class GameObject {
       throw "GameObject.location must be a Location object!";
     }
     this.#locChange = true;
-    console.log("LOCATION CHANGE!!");
     this.#location = in_value;
   }
   get location() {
@@ -1439,13 +1438,6 @@ class SceneLayer {
 
     let deletedObjs = [];
 
-    //check if there was a view change??
-    //maybe I don't need this now.
-//    if (this.#parentWindow.viewChange) {
-
-//    }
-console.log("---!!!--- viewChange "+ this.#parentWindow.viewChange);
-
     this.#gameObjects.forEach((vv_object, vv_index, vv_array) => {
       //if it's deleted, BYE!
       if (vv_object.deleted) {
@@ -1460,7 +1452,7 @@ console.log("---!!!--- viewChange "+ this.#parentWindow.viewChange);
       }
       //if the scene view changed OR the gameObject's location changed, then we need to update!
       else if (this.#parentWindow.viewChange || vv_object.locChange) {
-        console.log(" !!!!  viewChange: " + this.#parentWindow.viewChange + ", locChange: " + vv_object.locChange);
+        //console.log(" !!!!  viewChange: " + this.#parentWindow.viewChange + ", locChange: " + vv_object.locChange);
         //we can reset the loc change
         vv_object.resetLocChange();
         //check if its out of view??  Maybe move those to a different gameObject list?? well... we'd need to
@@ -1722,13 +1714,10 @@ class GameWindow {
   get viewChange() {
     //if we already know the answer, just send it!
     if (this.#viewChangeCheckedThisFrame) {
-      console.log("viewchange CHECKED! this frame: " + this.#viewChangeCheckedThisFrame);
       return this.#viewChange;
     }
-    console.log("viewchange NOT CHECKED!!");
     //we haven't checked this frame yet..  compare camera's loc with our last loc of it.
     if (this.#lastCameraLoc.equals(this.#camera.location)) {
-      console.log("   SAME LOC!!");
       //it's the same still.  no change.
       this.#viewChangeCheckedThisFrame = true;
       //technically we don't need to do this.. it should be false.  Unless I messed something up somewhere!
@@ -1736,7 +1725,6 @@ class GameWindow {
     }
     else {
       //change!
-      console.log("   SCHNAGE!!");
       this.#viewChangeCheckedThisFrame = true;
       this.#viewChange = true;
       this.#lastCameraLoc = this.#camera.location;
@@ -1822,6 +1810,7 @@ class FileLoader {
     return this.#okToContinue;
   }
 
+  /*
   async waitUntilComplete() {
 
     //ummm.... have a little loop
@@ -1886,6 +1875,7 @@ class FileLoader {
       }
     });
   }
+  */
 
   //this returns a previously loaded file..
   getFile(in_name) {
@@ -2184,21 +2174,18 @@ class ControllableCow extends GameObject {
 
   //cow definitely needs an udpate.  To mooOOOooove!
   update() {
-    console.log("CON COW  UPDTAE!!");
     //for the moooment, I'm just gonna check presses from heeeere.
     let tmp_x = super.location.x;
     let tmp_y = super.location.y;
     let tmp_z = super.location.z;
     //check if button presses!
     if (InputHandler.Instance().checkIsDown("ArrowLeft")) {
-      console.log("LEFT PRESSED!");
       //we going leeeft
       tmp_x -= (Game.Instance().timer.timeElapsed / 1000) * this.#movementSpeed;
       //now make sure we haven't gone past an edge..
       if (this.#boundary && tmp_x < this.#boundary.left) {
         tmp_x = this.#boundary.left;
       }
-        console.log("new X! " + tmp_x);
     }
     if (InputHandler.Instance().checkIsDown("ArrowRight")) {
       //we going right
