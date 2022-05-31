@@ -1104,6 +1104,7 @@ class SceneScaler {
   #hDifference;
   #vDifference;
   #vDistanceHorizon;
+  #horizonHeightDifferenceFrontToRear
   #horizonHeightDifferenceFrontToHorizon;
   #horizonHeightDifferenceHorizonToRear;
   #zDistanceToBeginSizeScaling;
@@ -1181,6 +1182,7 @@ class SceneScaler {
     //console.log("hzn height: " + this.#horizonHeightAtHorizon);
 
     //console.log("hzHeightHz " + this.#horizonHeightAtHorizon + ", hzHeightFr " + this.#horizonHeightFront);
+    this.#horizonHeightDifferenceFrontToRear = this.#horizonHeightRear - this.#horizonHeightFront;
     this.#horizonHeightDifferenceFrontToHorizon = this.#horizonHeightAtHorizon - this.#horizonHeightFront;
     this.#horizonHeightDifferenceHorizonToRear = this.#horizonHeightRear - this.#horizonHeightAtHorizon;
   }
@@ -1242,6 +1244,7 @@ class SceneScaler {
     //console.log("SCALE NUMS: scaler " + this.#zScalingRatio + ", hdist " + this.#tmp_dist + ", hdistb " + this.#hDistanceWhereBeginScaling + ", scaledif " + this.#zScalingDifference);
     if (this.#tmp_dist <= this.#hDistanceWhereBeginScaling) {
       //our location is closer than where we scale.. so don't scale!
+      //TODO: do i have a base scaling?
       this.#tmp_scale = 1;
     }
     else {
@@ -1264,13 +1267,27 @@ class SceneScaler {
       //get this guy FIRST, because tmp_ratio is already set front to back!
       this.#tmp_dist = (this.#tmp_ratio * this.#vDifference) + this.#vDistanceFront;
       //console.log("ver height at depth " + this.#tmp_dist);
-      //now we overwrite tmp_ratio to get ratio from from to HORIZON
-      this.#tmp_ratio = (in_loc.z - (in_center.z + this.#zLocationFront)) / this.#zDistanceFrontToH;
-      //console.log("ratio " + this.#tmp_ratio);
-      //console.log("bleh " + this.#horizonHeightDifferenceFrontToHorizon);
-      //console.log("hzHeightFront " + this.#horizonHeightFront);
-      this.#tmp_bottom_height_from_horizon = (this.#tmp_ratio * this.#horizonHeightDifferenceFrontToHorizon) + this.#horizonHeightFront;
-      //console.log("hz height " + this.#tmp_bottom_height_from_horizon);
+      if (this.#zDistanceFrontToH < this.#zDistance) {
+        //we need to calc to horizon!  That's the rise we want to use.
+        //now we overwrite tmp_ratio to get ratio from from to HORIZON
+        this.#tmp_ratio = (in_loc.z - (in_center.z + this.#zLocationFront)) / this.#zDistanceFrontToH;
+        //console.log("ratio " + this.#tmp_ratio);
+        //console.log("bleh " + this.#horizonHeightDifferenceFrontToHorizon);
+        //console.log("hzHeightFront " + this.#horizonHeightFront);
+        this.#tmp_bottom_height_from_horizon = (this.#tmp_ratio * this.#horizonHeightDifferenceFrontToHorizon) + this.#horizonHeightFront;
+        //console.log("hz height " + this.#tmp_bottom_height_from_horizon);
+      }
+      else {
+        //calc to rear.  We won't be rising as much!
+        //now we overwrite tmp_ratio to get ratio from from to HORIZON
+        this.#tmp_ratio = (in_loc.z - (in_center.z + this.#zLocationFront)) / this.#zDistance;
+        //console.log("ratio " + this.#tmp_ratio);
+        //console.log("bleh " + this.#horizonHeightDifferenceFrontToHorizon);
+        //console.log("hzHeightFront " + this.#horizonHeightFront);
+        this.#tmp_bottom_height_from_horizon = (this.#tmp_ratio * this.#horizonHeightDifferenceFrontToRear) + this.#horizonHeightFront;
+        //console.log("hz height " + this.#tmp_bottom_height_from_horizon);
+
+      }
       //now we can get the ratio how high up we are from the bottom and multiply by scene height!
       tmp_y = ((in_loc.y + this.#tmp_bottom_height_from_horizon) / this.#tmp_dist) * this.#sceneSize.height;
       //console.log("y loc " + tmp_y);
@@ -1281,12 +1298,24 @@ class SceneScaler {
       //we need to get the vertical distance at this z depth.
       this.#tmp_dist = (this.#tmp_ratio * this.#vDifference) + this.#vDistanceFront;
       //console.log("ver height at depth " + this.#tmp_dist);
-      this.#tmp_ratio = (in_loc.z - (in_center.z + this.#zLocationHorizon)) / this.#zDistanceHToRear;
-      //console.log("ratio " + this.#tmp_ratio);
-      //console.log("bleh " + this.#horizonHeightDifferenceHorizonToRear);
-      //console.log("hzHeightFront " + this.#horizonHeightAtHorizon);
-      this.#tmp_bottom_height_from_horizon = (this.#tmp_ratio * this.#horizonHeightDifferenceHorizonToRear) + this.#horizonHeightAtHorizon;
-      //console.log("hz height " + this.#tmp_bottom_height_from_horizon);
+      if (this.#zDistanceHToRear > this.zDistance) {
+        //we need to calc from horizon to rear!
+        this.#tmp_ratio = (in_loc.z - (in_center.z + this.#zLocationHorizon)) / this.#zDistanceHToRear;
+        //console.log("ratio " + this.#tmp_ratio);
+        //console.log("bleh " + this.#horizonHeightDifferenceHorizonToRear);
+        //console.log("hzHeightFront " + this.#horizonHeightAtHorizon);
+        this.#tmp_bottom_height_from_horizon = (this.#tmp_ratio * this.#horizonHeightDifferenceHorizonToRear) + this.#horizonHeightAtHorizon;
+        //console.log("hz height " + this.#tmp_bottom_height_from_horizon);
+      }
+      else {
+        //we need to calc from front to rear!  front is farther back than horizoN!
+        this.#tmp_ratio = (in_loc.z - (in_center.z + this.#zLocationFront)) / this.#zDistance;
+        //console.log("ratio " + this.#tmp_ratio);
+        //console.log("bleh " + this.#horizonHeightDifferenceHorizonToRear);
+        //console.log("hzHeightFront " + this.#horizonHeightAtHorizon);
+        this.#tmp_bottom_height_from_horizon = (this.#tmp_ratio * this.#horizonHeightDifferenceFrontToRear) + this.#horizonHeightFront;
+        //console.log("hz height " + this.#tmp_bottom_height_from_horizon);
+      }
       //now we can get the ratio how high up we are from the bottom and multiply by scene height!
       tmp_y = ((in_loc.y + this.#tmp_bottom_height_from_horizon) / this.#tmp_dist) * this.#sceneSize.height;
     }
