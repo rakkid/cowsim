@@ -1521,6 +1521,8 @@ class SceneLayer {
           for (let i=0; i<this.#sceneScalers.length; i++) {
             if (this.#sceneScalers[i].zInRange(vv_object.location.z, this.#parentWindow.camera.location.z)) {
               tmp_scene_scale_info = this.#sceneScalers[i].calcScenePosition(vv_object.location, this.#parentWindow.camera.location);
+              //great!  break!
+              break;
             }
           }
           //if the object isn't in range, then... ummm...  don't draw it??
