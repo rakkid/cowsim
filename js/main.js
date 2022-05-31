@@ -31,7 +31,7 @@ const TREE_OPTIONS = 4;
 const GROUND_EFFECTS_OPTIONS = 4;
 
 const FPS_FPS = 30;
-const SECONDS_TO_RUN = 5;
+const SECONDS_TO_RUN = 15;
 
 class GameTime {
   #beginTime;
@@ -828,6 +828,7 @@ class GameObject {
     if (! in_value instanceof Location) {
       throw "GameObject.location must be a Location object!";
     }
+    //check to see if it changed??
     this.#locChange = true;
     this.#location = in_value;
   }
@@ -1155,7 +1156,7 @@ class SceneScaler {
     this.#zDistanceToBeginSizeScaling = in_z_distance_begin_scaling;
     this.#sceneSize = in_scene_size;
     this.#clippingDistance = in_clipping_distances;
-    console.log("hzHeight: " + in_horizon_height_at_horizon);
+    //console.log("hzHeight: " + in_horizon_height_at_horizon);
 
     //working with our z-distance as negative, let's say rear is -110, front is -40.
     //  -110 - -40 = -70 distance.  Keep it negative??  We'll see..
@@ -1173,13 +1174,13 @@ class SceneScaler {
 
     //calc the vertical distance at the horizon..
     this.#tmp_ratio = this.#zDistanceFrontToH / this.#zDistance;
-    console.log("HERE!!  " + this.#tmp_ratio + " " + this.#vDifference + " " + this.#vDistanceFront);
+    //console.log("HERE!!  " + this.#tmp_ratio + " " + this.#vDifference + " " + this.#vDistanceFront);
     this.#vDistanceHorizon = (this.#tmp_ratio * this.#vDifference) + this.#vDistanceFront;
-    console.log("HERE!!  " + in_horizon_height_at_horizon + " " + this.#sceneSize.height + " " + this.#vDistanceHorizon);
+    //console.log("HERE!!  " + in_horizon_height_at_horizon + " " + this.#sceneSize.height + " " + this.#vDistanceHorizon);
     this.#horizonHeightAtHorizon = (in_horizon_height_at_horizon / this.#sceneSize.height) * this.#vDistanceHorizon;
-    console.log("hzn height: " + this.#horizonHeightAtHorizon);
+    //console.log("hzn height: " + this.#horizonHeightAtHorizon);
 
-    console.log("hzHeightHz " + this.#horizonHeightAtHorizon + ", hzHeightFr " + this.#horizonHeightFront);
+    //console.log("hzHeightHz " + this.#horizonHeightAtHorizon + ", hzHeightFr " + this.#horizonHeightFront);
     this.#horizonHeightDifferenceFrontToHorizon = this.#horizonHeightAtHorizon - this.#horizonHeightFront;
     this.#horizonHeightDifferenceHorizonToRear = this.#horizonHeightRear - this.#horizonHeightAtHorizon;
   }
@@ -1187,10 +1188,10 @@ class SceneScaler {
   //Here we are, folks!!  take in the center point of the scene and a location, and it converts that
   //  location into a scene location/position!
   calcScenePosition(in_loc, in_center) {
-          console.log("---------------------");
+          //console.log("---------------------");
 
-    console.log("gameLocation: " + in_loc.x + ", " + in_loc.y + ", " + in_loc.z);
-    console.log("centLocation: " + in_center.x + ", " + in_center.y + ", " + in_center.z);
+    //console.log("gameLocation: " + in_loc.x + ", " + in_loc.y + ", " + in_loc.z);
+    //console.log("centLocation: " + in_center.x + ", " + in_center.y + ", " + in_center.z);
 
     //check if outside clipping zone!
     //UMM... clipping distance z...  positive number means behind the camera..  toward the viewer.
@@ -1200,7 +1201,7 @@ class SceneScaler {
         in_loc.z < in_center.z + this.#clippingDistance.rear) {
       //object is outside clipping, we don't need to draw this guy
       //TODO:  umm... flag something to disable it / remove from DOM?
-      console.log("  DO NOT CALC OR DRAW THIS GUY!");
+      //console.log("  DO NOT CALC OR DRAW THIS GUY!");
       return;
     }
 
@@ -1212,7 +1213,7 @@ class SceneScaler {
     //NOTE: #zDistance is NEGATIVE.  But in_loc_z is always smaller than zLocationFront, so we'll get
     //  a negative number there, too...  neg divided neg equals postive.  which we want.  So we are GOOD!
     this.#tmp_ratio = (in_loc.z - (in_center.z + this.#zLocationFront)) / this.#zDistance;
-    console.log("zratio " + this.#tmp_ratio);
+    //console.log("zratio " + this.#tmp_ratio);
 
     //Here's our X / horizontal location
     //now we can get the horizontal distance at that z depth..
@@ -1238,7 +1239,7 @@ class SceneScaler {
     //It's pretty easy.  the scale(ratio) is front width / rear width.  easy.
     //50 px wide at front.  200 px wide at back.  the full 50 will be 1/4 the width at back.  50/200 = 1/4.  YUP.
     //MAYBE??  My brain FELL OUT!!  I understood this stuff yesteday.... today, forget it!!
-    console.log("SCALE NUMS: scaler " + this.#zScalingRatio + ", hdist " + this.#tmp_dist + ", hdistb " + this.#hDistanceWhereBeginScaling + ", scaledif " + this.#zScalingDifference);
+    //console.log("SCALE NUMS: scaler " + this.#zScalingRatio + ", hdist " + this.#tmp_dist + ", hdistb " + this.#hDistanceWhereBeginScaling + ", scaledif " + this.#zScalingDifference);
     if (this.#tmp_dist <= this.#hDistanceWhereBeginScaling) {
       //our location is closer than where we scale.. so don't scale!
       this.#tmp_scale = 1;
@@ -1246,7 +1247,7 @@ class SceneScaler {
     else {
       this.#tmp_scale = 1 + ((this.#zScalingRatio - 1) * ((this.#tmp_dist - this.#hDistanceWhereBeginScaling)/this.#zScalingDifference));
     }
-    console.log("SCALE IS " + this.#tmp_scale);
+    //console.log("SCALE IS " + this.#tmp_scale);
 
     //Here's our Y / vertical location... This one is a bit more complicated than X??  As we get farther back toward
     //  the horizon, we need to adjust for that..  Can I just use front/rear vDistance dumbly?
@@ -1257,40 +1258,40 @@ class SceneScaler {
     //we do front first, because that's what I calculated first.
     //if ((in_loc.z - in_center.z) >= this.zLocationHorizon) {
     if (tmp_z >= 0) {
-      console.log("IN FRONT OF HORIZON");
-      console.log("in z: " + in_loc.z + ", zFront: " + this.#zLocationFront + ", ftoH: " + this.#zDistanceFrontToH);
+      //console.log("IN FRONT OF HORIZON");
+      //console.log("in z: " + in_loc.z + ", zFront: " + this.#zLocationFront + ", ftoH: " + this.#zDistanceFrontToH);
       //we need to get the vertical distance at this z depth.
       //get this guy FIRST, because tmp_ratio is already set front to back!
       this.#tmp_dist = (this.#tmp_ratio * this.#vDifference) + this.#vDistanceFront;
-      console.log("ver height at depth " + this.#tmp_dist);
+      //console.log("ver height at depth " + this.#tmp_dist);
       //now we overwrite tmp_ratio to get ratio from from to HORIZON
       this.#tmp_ratio = (in_loc.z - (in_center.z + this.#zLocationFront)) / this.#zDistanceFrontToH;
-      console.log("ratio " + this.#tmp_ratio);
-      console.log("bleh " + this.#horizonHeightDifferenceFrontToHorizon);
-      console.log("hzHeightFront " + this.#horizonHeightFront);
+      //console.log("ratio " + this.#tmp_ratio);
+      //console.log("bleh " + this.#horizonHeightDifferenceFrontToHorizon);
+      //console.log("hzHeightFront " + this.#horizonHeightFront);
       this.#tmp_bottom_height_from_horizon = (this.#tmp_ratio * this.#horizonHeightDifferenceFrontToHorizon) + this.#horizonHeightFront;
-      console.log("hz height " + this.#tmp_bottom_height_from_horizon);
+      //console.log("hz height " + this.#tmp_bottom_height_from_horizon);
       //now we can get the ratio how high up we are from the bottom and multiply by scene height!
       tmp_y = ((in_loc.y + this.#tmp_bottom_height_from_horizon) / this.#tmp_dist) * this.#sceneSize.height;
-      console.log("y loc " + tmp_y);
+      //console.log("y loc " + tmp_y);
     }
     else {
-      console.log("BEHIND HORIZON");
+      //console.log("BEHIND HORIZON");
       //okayyy!  Doing the same thing, essentially, just from horizon to rear, so the horizon goes dooown instead of up.
       //we need to get the vertical distance at this z depth.
       this.#tmp_dist = (this.#tmp_ratio * this.#vDifference) + this.#vDistanceFront;
-      console.log("ver height at depth " + this.#tmp_dist);
+      //console.log("ver height at depth " + this.#tmp_dist);
       this.#tmp_ratio = (in_loc.z - (in_center.z + this.#zLocationHorizon)) / this.#zDistanceHToRear;
-      console.log("ratio " + this.#tmp_ratio);
-      console.log("bleh " + this.#horizonHeightDifferenceHorizonToRear);
-      console.log("hzHeightFront " + this.#horizonHeightAtHorizon);
+      //console.log("ratio " + this.#tmp_ratio);
+      //console.log("bleh " + this.#horizonHeightDifferenceHorizonToRear);
+      //console.log("hzHeightFront " + this.#horizonHeightAtHorizon);
       this.#tmp_bottom_height_from_horizon = (this.#tmp_ratio * this.#horizonHeightDifferenceHorizonToRear) + this.#horizonHeightAtHorizon;
-      console.log("hz height " + this.#tmp_bottom_height_from_horizon);
+      //console.log("hz height " + this.#tmp_bottom_height_from_horizon);
       //now we can get the ratio how high up we are from the bottom and multiply by scene height!
       tmp_y = ((in_loc.y + this.#tmp_bottom_height_from_horizon) / this.#tmp_dist) * this.#sceneSize.height;
     }
 
-    console.log("scenLocation: " + tmp_x + ", " + tmp_y + ", " + tmp_z);    
+    //console.log("scenLocation: " + tmp_x + ", " + tmp_y + ", " + tmp_z);    
 
     //OK.. our horizontal position..  We need to know how close we are to the front vs the back.  Use that ratio
     //  to calc the horizontal left-right ratio at that distance.
@@ -1453,7 +1454,6 @@ class SceneLayer {
 
   //this goes through each gameObject and checks if we need to update the object's visual position..
   lateUpdate() {
-
     let deletedObjs = [];
 
     this.#gameObjects.forEach((vv_object, vv_index, vv_array) => {
@@ -1615,7 +1615,7 @@ class GameWindow {
   }
 
   earlyUpdate() {
-    console.log("   ------ GAME WINDOW VIEW CHANGE RESET ------");
+    //console.log("   ------ GAME WINDOW VIEW CHANGE RESET ------");
     //reset our viewChange!
     this.#viewChange = false;
     this.#viewChangeCheckedThisFrame = false;
@@ -2196,9 +2196,11 @@ class ControllableCow extends GameObject {
     let tmp_x = super.location.x;
     let tmp_y = super.location.y;
     let tmp_z = super.location.z;
+    let tmp_input = false;
     //check if button presses!
     if (InputHandler.Instance().checkIsDown("ArrowLeft")) {
       //we going leeeft
+      tmp_input = true;
       tmp_x -= (Game.Instance().timer.timeElapsed / 1000) * this.#movementSpeed;
       //now make sure we haven't gone past an edge..
       if (this.#boundary && tmp_x < this.#boundary.left) {
@@ -2207,6 +2209,7 @@ class ControllableCow extends GameObject {
     }
     if (InputHandler.Instance().checkIsDown("ArrowRight")) {
       //we going right
+      tmp_input = true;
       tmp_x += (Game.Instance().timer.timeElapsed / 1000) * this.#movementSpeed;
       //now make sure we haven't gone past an edge..
       if (this.#boundary && tmp_x > this.#boundary.right) {
@@ -2215,6 +2218,7 @@ class ControllableCow extends GameObject {
     }
     if (InputHandler.Instance().checkIsDown("ArrowDown")) {
       //we going out toward front
+      tmp_input = true;
       tmp_z += (Game.Instance().timer.timeElapsed / 1000) * this.#movementSpeed;
       //now make sure we haven't gone past an edge..
       if (this.#boundary && tmp_z > this.#boundary.front) {
@@ -2223,20 +2227,106 @@ class ControllableCow extends GameObject {
     }
     if (InputHandler.Instance().checkIsDown("ArrowUp")) {
       //we going innnn
+      tmp_input = true;
       tmp_z -= (Game.Instance().timer.timeElapsed / 1000) * this.#movementSpeed;
       //now make sure we haven't gone past an edge..
       if (this.#boundary && tmp_z < this.#boundary.rear) {
         tmp_z = this.#boundary.rear;
       }
     }
-    //now update our location!
-    super.location = new Location(tmp_x, tmp_y, tmp_z);
+    if (tmp_input === true) {
+      //now update our location!
+     super.location = new Location(tmp_x, tmp_y, tmp_z);
+   }
   }
 
   //Cow needs to know when we move..  How'm I doing this??  In update?  Or do I do some register-ee shit?  Or
   //  even something like: "onKeyDown" and "onKeyUp"  and in Game, also look for those fuckers!  Probably should
   //  do that....
   //TODO
+}
+
+//Grass class!  Umm..  Should this and flower both be children of plant??  Maybe probably.
+//Grass..  it grows!
+//  Cows eat it.  Yummmnummnommmm!
+//  will it wilt?  not really.  but will it die???  It can turn to hay-ish?
+//What age should I have it go from small to tall to fall??
+//  literal game days??  day 1: small.  day 5: tall??  day 15: fall??  day 20: almost gone.  day: 25 gone
+//  should I have a medium size??
+class Grass extends GameObject {
+  #age;
+
+  constructor(in_location, in_age) {
+    super();
+    if (in_age) {
+      this.#age = in_age;      
+    }
+    else {
+      this.#age = 1;
+    }
+    this.location = in_location;
+    this.locationPoint = GameObject.LOC_BC;
+    //we need a new grass img for this guy.
+    let tmp_rand = 1;
+    let tmp_file_name;
+    if (this.#age < 5) {
+      tmp_rand = Math.floor(Math.random() * GRASS_S_OPTIONS) + 1;
+      tmp_file_name = GRASS_S_NAME + (tmp_rand < 10? "0" : "") + tmp_rand + "." + IMG_TYPE;
+    }
+    else if (this.#age < 15) {
+      tmp_rand = Math.floor(Math.random() * GRASS_L_OPTIONS) + 1;
+      tmp_file_name = GRASS_L_NAME + (tmp_rand < 10? "0" : "") + tmp_rand + "." + IMG_TYPE;
+    }
+    else {
+      tmp_rand = Math.floor(Math.random() * GRASS_L_OPTIONS) + 1;
+      tmp_file_name = GRASS_L_NAME + (tmp_rand < 10? "0" : "") + tmp_rand + "." + IMG_TYPE;
+    }
+
+    this.setImage(tmp_file_name, FileLoader.Instance().getFile(tmp_file_name));
+  }
+
+
+  //Grass builder...
+  static factory(in_boundary, in_padding, in_amount, in_age) {
+    let tmp_grass = [];
+    let tmp_age = 0;
+    if (in_age >= 0) {
+      tmp_age = in_age;
+    }
+    else {
+      in_age = -1;
+    }
+
+    //build from (a) -10 to (b) 200..
+    //  Math.random * (b - a) + a.
+    const tmp_left = in_boundary.left - in_padding;
+    const tmp_right = in_boundary.right + in_padding;
+    const tmp_front = in_boundary.front + in_padding;
+    const tmp_rear = in_boundary.back - in_padding;
+    for (let i=0; i<in_amount; i++) {
+      if (in_age === -1) {
+        tmp_age = Math.floor(Math.random() * 24);
+      }
+      tmp_grass.push(new Grass(new Location(Math.random()*(tmp_right-tmp_left)+tmp_left, 
+                                            0, 
+                                            Math.random()*(tmp_front-tmp_rear)+tmp_rear), tmp_age));
+    }
+
+    //and we're done
+    return tmp_grass;
+  }
+
+  get age() {
+    return this.#age;
+  }
+}
+
+class Flower {
+
+}
+
+class Tree {
+
 }
 
 //---===---===---===---===---
@@ -2478,6 +2568,13 @@ function pastureLayerBuild(in_window) {
     tmp_obj.location = new Location(35, 0, -10.8);
     tmp_layer.addObject(tmp_obj);
 */
+
+  let tmp_boundary = new Boundary(0, 60, 20, -40);
+  let tmp_grass = Grass.factory(tmp_boundary, 10, 120, -1);
+  tmp_grass.forEach(vv_object => {
+    tmp_layer.addObject(vv_object);
+    Game.Instance().addObject(vv_object);
+  });
 
   return tmp_layer;
 }
