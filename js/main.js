@@ -1336,6 +1336,41 @@ class SceneScaler {
     return false;
   }
 
+  //this takes in the distance to horizon, the height of horizon, the height at zero, and a distance
+  //  in between.  It returns the height at that distance!
+  static calcHorizonHeight(in_horizon_distance, in_horizon_height, in_zero_height, in_calc_height_at_distance) {
+    //first get our ratio from front to back, that we need to calc at.
+    //far distance is -60.  our distance is -40.  40/60 = .67    ..  then .67 * (horizon_height - zero_height)
+    //WHAT IF horizon is lower than zero??  (for when we are calc'ing beyond-horizon numbers)
+    //  umm...  60..  0.   .66  becomes 20..
+    let tmp_ratio = in_calc_height_at_distance / in_horizon_distance;
+    let tmp_result = tmp_ratio * (in_horizon_height - in_zero_height) + in_zero_height;
+    //if tmp_result is negative..  for example, -40, this still works..  we'd get -40 + 60 = -20. yup!
+    return tmp_result;
+  }
+
+  //accessors....  the ones that are exposed are mostly used for building SceneScalers that are in front of
+  //  or behind..  Liiike, if I create a scene out of a few different scalers...  as we get closer to the 
+  //  camera, I want to scale differently than far back.
+  get hDistanceRear() {
+    return this.#hDistanceRear;
+  }
+  get vDistanceRear() {
+    return this.#vDistanceRear;
+  }
+  get horizonHeightRear() {
+    return this.#horizonHeightRear;
+  }
+  get horizonHeightAtHorizon() {
+    return this.#horizonHeightAtHorizon;
+  }
+  get zDistanceFromCameraRear() {
+    return this.#zLocationRear;
+  }
+  get zDistanceFromCameraHorizon() {
+    return this.#zLocationHorizon;
+  }
+
 }
 
 //I need to create something that handles depth and converts it into z-index and height... and I guess
@@ -2486,14 +2521,45 @@ function pastureLayerBuild(in_window) {
               in_z_distance_begin_scaling,
               in_scene_size) {
   */
-  let tmp_scaler = new SceneScaler(10, 10 * (9/12),
-                                    100, 100 * (9/12),
-                                    0, -100, -60,
+  //I need multiple scene scalers...
+  //  a) the front area, which does not scale.
+  //  b) from back edge of front to horizon
+  //  c) from horizon to beyond.
+  //Shittttt, I need to do some more math to amke this work...  I rely on horizon height front/rear
+  //  but when I need to calculate that like horizon is BEHIND our rear, what do I do??
+  /*
+  let tmp_scaler = new SceneScaler(22.5, 22.5 * (9/12),
+                                    40, 40 * (9/12),
+                                    0, -60, -60,
                                     0, 0, tmp_layer.horizonHeight,
                                     -30, in_window.size,
-                                    new Boundary(50, 50, 10, -100));
-  //console.log("ADDINGGGG!!  SCENE SCALER");
+                                    new Boundary(50, 50, 20, -100));
   tmp_layer.addSceneScaler(tmp_scaler);
+  */
+  let tmp_scaler = new SceneScaler(22.5, 22.5 * (9/12),
+                                    22.5, 22.5 * (9/12),
+                                    0, -36, -63,
+                                    0, SceneScaler.calcHorizonHeight(-63, tmp_layer.horizonHeight, 0, -36), tmp_layer.horizonHeight,
+                                    -30, in_window.size,
+                                    new Boundary(23, 23, 5, -36));
+  tmp_layer.addSceneScaler(tmp_scaler);
+  tmp_scaler = new SceneScaler(tmp_scaler.hDistanceRear, tmp_scaler.vDistanceRear,
+                                    60, 60 * (9/12),
+                                    tmp_scaler.zDistanceFromCameraRear, -63, tmp_scaler.zDistanceFromCameraHorizon,
+                                    tmp_scaler.horizonHeightRear, tmp_layer.horizonHeight, tmp_layer.horizonHeight,
+                                    tmp_scaler.zDistanceFromCameraRear, in_window.size,
+                                    new Boundary(35, 35, tmp_scaler.zDistanceFromCameraRear, -63));
+  tmp_layer.addSceneScaler(tmp_scaler);
+  tmp_scaler = new SceneScaler(tmp_scaler.hDistanceRear, tmp_scaler.vDistanceRear,
+                                    200, 200 * (9/12),
+                                    tmp_scaler.zDistanceFromCameraRear, -200, tmp_scaler.zDistanceFromCameraHorizon,
+                                    tmp_layer.horizonHeight, 0, tmp_layer.horizonHeight,
+                                    tmp_scaler.zDistanceFromCameraRear, in_window.size,
+                                    new Boundary(100, 100, tmp_scaler.zDistanceFromCameraRear, -200));
+                                    //the back boundary is behnd the horizon, so we shouldn't even have to go to 100 left/right..
+  tmp_layer.addSceneScaler(tmp_scaler);
+
+
 
   tmp_obj = new GameObject();
   tmp_obj.setImage("assets/frontpasture_top_edge.png", FileLoader.Instance().getFile("assets/frontpasture_top_edge.png"));
@@ -2504,19 +2570,41 @@ function pastureLayerBuild(in_window) {
   tmp_layer.addStaticObjectToHorizon(tmp_obj, SceneLayer.TOP, -1);
 
   //le moo!
-  for (let i=0; i<1; i++) {
-  tmp_obj = new GameObject();
-  tmp_obj.locationPoint = GameObject.LOC_BC;
-  let tmp_file = FileLoader.Instance().getFile("assets/cow.png");
-  tmp_obj.setImage("assets/cow.png", tmp_file);
-  //let tmp_x = Math.random() * (in_window.windowElement.clientWidth - (tmp_file.naturalWidth * 1.2)) + (tmp_file.naturalWidth * 0.6);
-  //let tmp_y = Math.random() * (tmp_layer.horizonHeight - (tmp_file.naturalHeight * 0.4)) + (tmp_file.naturalHeight * 0.2);
-  tmp_obj.location = new Location(40, 0, 10 - (2*i));
-  tmp_layer.addObject(tmp_obj);
-  if (i == 0) {
-      in_window.camera = new Camera(tmp_obj, new Location(0, 0, 25));
+  for (let i=0; i<10; i++) {
+    tmp_obj = new GameObject();
+    tmp_obj.locationPoint = GameObject.LOC_BC;
+    let tmp_file = FileLoader.Instance().getFile("assets/cow.png");
+    tmp_obj.setImage("assets/cow.png", tmp_file);
+    //let tmp_x = Math.random() * (in_window.windowElement.clientWidth - (tmp_file.naturalWidth * 1.2)) + (tmp_file.naturalWidth * 0.6);
+    //let tmp_y = Math.random() * (tmp_layer.horizonHeight - (tmp_file.naturalHeight * 0.4)) + (tmp_file.naturalHeight * 0.2);
+    tmp_obj.location = new Location(27.5 + (5*i), 0, 0);
+    tmp_layer.addObject(tmp_obj);
+    Game.Instance().addObject(tmp_obj);
+
+    /*
+    if (i == 0) {
+        in_window.camera = new Camera(tmp_obj, new Location(0, 0, 25));
+    }
+  */
   }
+  for (let i=0; i<20; i++) {
+    tmp_obj = new GameObject();
+    tmp_obj.locationPoint = GameObject.LOC_BC;
+    let tmp_file = FileLoader.Instance().getFile("assets/cow.png");
+    tmp_obj.setImage("assets/cow.png", tmp_file);
+    //let tmp_x = Math.random() * (in_window.windowElement.clientWidth - (tmp_file.naturalWidth * 1.2)) + (tmp_file.naturalWidth * 0.6);
+    //let tmp_y = Math.random() * (tmp_layer.horizonHeight - (tmp_file.naturalHeight * 0.4)) + (tmp_file.naturalHeight * 0.2);
+    tmp_obj.location = new Location(27.5 + (5*i), 0, -60);
+    tmp_layer.addObject(tmp_obj);
+    Game.Instance().addObject(tmp_obj);
+    /*
+    if (i == 0) {
+        in_window.camera = new Camera(tmp_obj, new Location(0, 0, 25));
+    }
+  */
   }
+
+
   tmp_obj = new ControllableCow();
   tmp_obj.locationPoint = GameObject.LOC_BC;
   let tmp_file = FileLoader.Instance().getFile("assets/cow.png");
@@ -2527,9 +2615,9 @@ function pastureLayerBuild(in_window) {
   tmp_layer.addObject(tmp_obj);
   Game.Instance().addObject(tmp_obj);
   //ohhh.... something's messsssssed upppppp.  Cows be everywhere when this is close to the cow.  (since this is the far cow)
-  in_window.camera = new Camera(tmp_obj, new Location(0, 0, 40));
+  in_window.camera = new Camera(tmp_obj, new Location(0, 0, 18));
   //give the camera a boundary...?
-  in_window.camera.boundary = new Boundary (20, 780, 20, -760);
+  in_window.camera.boundary = new Boundary (10, 780, 5, -760);
   Game.Instance().addObject(in_window.camera);
 
 
