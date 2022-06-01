@@ -740,6 +740,7 @@ class GameObject {
   //is location CENTER of image?
   #location;
   #locationPoint;
+  #visualOffset;
 
   //do I wrap this guy in a div?  Or just have a floating image?
   #element;
@@ -768,6 +769,7 @@ class GameObject {
   constructor() {
     this.#location = new Location(0,0,0);
     this.#locationPoint = GameObject.LOC_BL;
+    this.#visualOffset = new Location(0,0,0);
     this.#animationMap = new Map();
     this.#locChange = true;  //it needs to be drawn initially...
     this.#hidden = false;
@@ -921,8 +923,14 @@ class GameObject {
     this.#element.style.zIndex = Math.floor(this.#sceneLocation.z * 100);
     //now set the location to our element!  We do bottom left!  (x and y offsets are already calc'd)
     //console.log("HILL LEFT IS " + (this.#sceneLocation.x + this.#xyOffset.x));
-    this.#element.style.left = Math.round(this.#sceneLocation.x + this.#xyOffset.x) + "px";
-    this.#element.style.bottom = Math.round(this.#sceneLocation.y + this.#xyOffset.y) + "px";
+    this.#element.style.left = Math.round(this.#sceneLocation.x + this.#xyOffset.x + this.#visualOffset.x) + "px";
+    this.#element.style.bottom = Math.round(this.#sceneLocation.y + this.#xyOffset.y + this.#visualOffset.y) + "px";
+  }
+  set visualOffset(in_value) {
+    if (! in_value instanceof Location) {
+      throw "GameObject.sceneLocation must be a Location object!";
+    }
+    this.#visualOffset = in_value;
   }
 
   get size() {
@@ -1270,7 +1278,11 @@ class SceneScaler {
       this.#tmp_scale = 1 * this.#scaleSizeAtFront;
     }
     else {
-      this.#tmp_scale = 1 + ((this.#zScalingRatio - 1) * ((this.#tmp_dist - this.#hDistanceWhereBeginScaling)/this.#zScalingDifference));
+      //this.#tmp_scale = 1 + ((this.#zScalingRatio - 1) * ((this.#tmp_dist - this.#hDistanceWhereBeginScaling)/this.#zScalingDifference));
+      //TODO: Figure out why our cows scale slow at the front and faster at the reaer...  Is it just because I don't
+      //  care about the size of the cows??  I DUNNO!
+      //console.log("zScalingRatio: " + this.#zScalingRatio + ", hDisAtLoc: " + this.#tmp_dist + ", hDisAtBegin: " + this.#hDistanceWhereBeginScaling + ", zScalingDif: " + this.#zScalingDifference);
+      this.#tmp_scale = 1 - ((1 - this.#zScalingRatio) * ((this.#tmp_dist - this.#hDistanceWhereBeginScaling)/this.#zScalingDifference));
       this.#tmp_scale *= this.#scaleSizeAtFront;
     }
     //console.log("SCALE IS " + this.#tmp_scale);
@@ -2286,7 +2298,7 @@ class Cow extends GameObject {
 //For the mooment, this guy will be its own thing.
 class ControllableCow extends GameObject {
   #boundary;
-  #movementSpeed = 10;
+  #movementSpeed = 6;
 
   constructor() {
     //we can probably pick the cow image here..  some kind of cow builder for all cows.
@@ -2370,6 +2382,7 @@ class Grass extends GameObject {
     }
     this.location = in_location;
     this.locationPoint = GameObject.LOC_BC;
+    this.visualOffset = new Location(0, -1, 0);
     //we need a new grass img for this guy.
     let tmp_rand = 1;
     let tmp_file_name;
@@ -2605,8 +2618,8 @@ function pastureLayerBuild(in_window) {
                                     new Boundary(50, 50, 20, -100));
   tmp_layer.addSceneScaler(tmp_scaler);
   */
-  let tmp_scaler = new SceneScaler(22.5, 22.5 * (9/12),
-                                    22.5, 22.5 * (9/12),
+  let tmp_scaler = new SceneScaler(25, 25 * (9/12),
+                                    25, 25 * (9/12),
                                     0, -36, -63,
                                     0, SceneScaler.calcHorizonHeight(-63, tmp_layer.horizonHeight, 0, -36), tmp_layer.horizonHeight,
                                     -36, in_window.size,
@@ -2616,15 +2629,15 @@ function pastureLayerBuild(in_window) {
   //  change the boundary...  what do I do about a giant tree??  That's what I want to know..
   tmp_layer.addSceneScaler(tmp_scaler);
   tmp_scaler = new SceneScaler(tmp_scaler.hDistanceRear, tmp_scaler.vDistanceRear,
-                                    60, 60 * (9/12),
+                                    100, 100 * (9/12),
                                     tmp_scaler.zDistanceFromCameraRear, -63, tmp_scaler.zDistanceFromCameraHorizon,
                                     tmp_scaler.horizonHeightRear, tmp_layer.horizonHeight, tmp_layer.horizonHeight,
                                     -36, in_window.size,
-                                    new Boundary(35, 35, tmp_scaler.zDistanceFromCameraRear, -63),
+                                    new Boundary(90, 90, tmp_scaler.zDistanceFromCameraRear, -63),
                                     tmp_scaler.scaleSizeAtRear);
   tmp_layer.addSceneScaler(tmp_scaler);
   tmp_scaler = new SceneScaler(tmp_scaler.hDistanceRear, tmp_scaler.vDistanceRear,
-                                    200, 200 * (9/12),
+                                    300, 300 * (9/12),
                                     tmp_scaler.zDistanceFromCameraRear, -200, tmp_scaler.zDistanceFromCameraHorizon,
                                     tmp_layer.horizonHeight, 0, tmp_layer.horizonHeight,
                                     -36, in_window.size,
@@ -2644,7 +2657,7 @@ function pastureLayerBuild(in_window) {
   tmp_layer.addStaticObjectToHorizon(tmp_obj, SceneLayer.TOP, -1);
 
   //le moo!
-  for (let i=0; i<0; i++) {
+  for (let i=0; i<5; i++) {
     tmp_obj = new GameObject();
     tmp_obj.locationPoint = GameObject.LOC_BC;
     let tmp_file = FileLoader.Instance().getFile("assets/cow.png");
@@ -2661,14 +2674,17 @@ function pastureLayerBuild(in_window) {
     }
   */
   }
-  for (let i=0; i<1; i++) {
+  for (let i=0; i<21; i++) {
+    if (i % 4 == 2) {
+      continue;
+    }
     tmp_obj = new GameObject();
     tmp_obj.locationPoint = GameObject.LOC_BC;
     let tmp_file = FileLoader.Instance().getFile("assets/cow.png");
     tmp_obj.setImage("assets/cow.png", tmp_file);
     //let tmp_x = Math.random() * (in_window.windowElement.clientWidth - (tmp_file.naturalWidth * 1.2)) + (tmp_file.naturalWidth * 0.6);
     //let tmp_y = Math.random() * (tmp_layer.horizonHeight - (tmp_file.naturalHeight * 0.4)) + (tmp_file.naturalHeight * 0.2);
-    tmp_obj.location = new Location(27.5 + (5*i), 0, -83);
+    tmp_obj.location = new Location(0 + (5*i), 0, -80);
     tmp_layer.addObject(tmp_obj);
     Game.Instance().addObject(tmp_obj);
     /*
@@ -2685,11 +2701,12 @@ function pastureLayerBuild(in_window) {
   tmp_obj.setImage("assets/cow.png", tmp_file);
   //let tmp_x = Math.random() * (in_window.windowElement.clientWidth - (tmp_file.naturalWidth * 1.2)) + (tmp_file.naturalWidth * 0.6);
   //let tmp_y = Math.random() * (tmp_layer.horizonHeight - (tmp_file.naturalHeight * 0.4)) + (tmp_file.naturalHeight * 0.2);
-  tmp_obj.location = new Location(40, 0, -20);
+  tmp_obj.location = new Location(40, 0, -58);
   tmp_layer.addObject(tmp_obj);
   Game.Instance().addObject(tmp_obj);
   //ohhh.... something's messsssssed upppppp.  Cows be everywhere when this is close to the cow.  (since this is the far cow)
-  in_window.camera = new Camera(tmp_obj, new Location(0, 0, 18));
+  //What camera distance do I like?????  35 is okay...  Remember, 36 is where we start scaling..
+  in_window.camera = new Camera(tmp_obj, new Location(0, 0, 28));
   //give the camera a boundary...?
   in_window.camera.boundary = new Boundary (10, 780, 5, -760);
   Game.Instance().addObject(in_window.camera);
@@ -2732,7 +2749,7 @@ function pastureLayerBuild(in_window) {
 */
 
 
-  let tmp_boundary = new Boundary(0, 60, 20, -40);
+  let tmp_boundary = new Boundary(0, 100, 20, -120);
   let tmp_grass = Grass.factory(tmp_boundary, 10, 120, -1);
   tmp_grass.forEach(vv_object => {
     tmp_layer.addObject(vv_object);
