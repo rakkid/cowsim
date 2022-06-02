@@ -2545,6 +2545,9 @@ class SceneFader extends GameObject {
 
   #timer;
 
+  #fadingIn = false;
+  #fadingOut = false;
+
   constructor(in_fade_to_color, in_max_fade, in_fade_speed_seconds) {
     super();
     this.#currentFade = 0;
@@ -2568,6 +2571,17 @@ class SceneFader extends GameObject {
 
   //this fades from zero to whatever %
   fadeIn(in_callback, in_speed_seconds_optional) {
+    //let's see if we're fading already...
+    if (this.#fadingIn) {
+      //we're already fading in.. sooo, we can ignore this fadeIn call.....???
+      return;
+    }
+    if (this.#fadingOut) {
+      //we've interrupted fade-out!
+      this.#fadingOut = false;
+    }
+    this.#fadingIn = true;
+
     //create our own timer.
     this.#timer = new GameTime();
 
@@ -2582,6 +2596,13 @@ class SceneFader extends GameObject {
   //should I not bother having all the checks in the one above, and just call a specific function for the 
   //  repeating?
   #fadeInInternal(in_callback, in_speed_millis) {
+    //check if we've been interrupted and fading is now going the other way...???
+    if (this.#fadingOut) {
+      //fadingIn is now flagged as true.. soo... we stop fading out.  DO WE CALL THE CALLBACK??
+      //  I don't think we do...
+      return;
+    }
+
     //keep calling ourself until fully faded, then call the callback to let it know!
     this.#timer.update();
     console.log("elapsed: " + this.#timer.timeElapsed + ", speed: " + in_speed_millis + ", maxFade: " + this.#maxFade);
@@ -2594,6 +2615,7 @@ class SceneFader extends GameObject {
       //clear our timer...?  We don't really need to, but we'll be replacing it the next time we're called,
       //  so might as well...?
       this.#timer = null;
+      this.#fadingIn = false;
       in_callback();
       return;
     }
@@ -2607,6 +2629,17 @@ class SceneFader extends GameObject {
 
   //this fades from whatever % we're at, back to zero
   fadeOut(in_callback, in_speed_seconds_optional) {
+    //let's see if we're fading already...
+    if (this.#fadingOut) {
+      //we're already fading out.. sooo, we can ignore this fadeOut call.....???
+      return;
+    }
+    if (this.#fadingIn) {
+      //we've interrupted fade-in!
+      this.#fadingIn = false;
+    }
+    this.#fadingOut = true;
+
     //create our own timer.
     this.#timer = new GameTime();
 
@@ -2619,6 +2652,13 @@ class SceneFader extends GameObject {
   }
 
   #fadeOutInternal(in_callback, in_speed_millis) {
+    //check if we've been interrupted and fading is now going the other way...???
+    if (this.#fadingIn) {
+      //fadingIn is now flagged as true.. soo... we stop fading out.  DO WE CALL THE CALLBACK??
+      //  I don't think we do...
+      return;
+    }
+
     //keep calling ourself until fully faded, then call the callback to let it know!
     this.#timer.update();
     console.log("elapsed: " + this.#timer.timeElapsed + ", speed: " + in_speed_millis + ", maxFade: " + this.#maxFade);
@@ -2631,6 +2671,7 @@ class SceneFader extends GameObject {
       //clear our timer...?  We don't really need to, but we'll be replacing it the next time we're called,
       //  so might as well...?
       this.#timer = null;
+      this.#fadingOut = false;
       in_callback();
       return;
     }
