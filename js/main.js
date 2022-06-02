@@ -1004,6 +1004,7 @@ class GameObject {
   #xyOffset;
 
   #naturalSize;
+  #specificSize = null;
   //how am I going to do size....?  size vs image size??
   #sizeScale;
   //this is the actual size of our img/div holding it.  calc'd from img size and scale.
@@ -1111,7 +1112,7 @@ class GameObject {
     }
     if (this.#element == null) {
       //element was never created??  That means they never gave us an image...  Not good!!
-      throw "GameObject.image but be assigned before assigning sizeScale!";
+      throw "GameObject.image must be assigned before assigning sizeScale!";
     }
 
     //OK!  We've been told our size scale!  We need to use this with our natural size and set our
@@ -1123,7 +1124,12 @@ class GameObject {
       return;
     }
     this.#sizeScale = in_value;
-    this.#size = new Size(in_value * this.#naturalSize.width, in_value * this.#naturalSize.height);
+    if (this.#specificSize != null) {
+      this.#size = new Size(in_value * this.#specificSize.width, in_value * this.#specificSize.height);
+    }
+    else {
+      this.#size = new Size(in_value * this.#naturalSize.width, in_value * this.#naturalSize.height);
+    }
     //TODO:  ALTERNATELY, I can create a new Size in the constructor, and just update the size here..
     //  then I'm not creating lots of new Size objects...  buuut, I dunno.  Defeats the purpose of
     //  accidently messing up the size object?  It does'nt really matter....
@@ -1134,6 +1140,28 @@ class GameObject {
     //TODO:  Have different rendered images based on size... if our size goes below a threshold, swap
     //  images to the smaller (or larger) size?
 
+    //also update our object??
+    this.#element.style.width = this.#size.width + "px";
+    this.#element.style.height = this.#size.height + "px";
+  }
+  //this can set the image with a specific width/height.
+  set specificSize(in_value) {
+    if (this.#element == null) {
+      //element was never created??  That means they never gave us an image...  Not good!!
+      throw "GameObject.image must be assigned before assigning specificSize!";
+    }
+    if (in_value instanceof Size) {
+      //great, it's a size!
+      this.#specificSize = in_value;
+      this.#size = new Size(this.#sizeScale * in_value.width, this.#sizeScale * in_value.height);
+    }
+    else {
+      //they just sent us 1 number...??  Umm... use it for both width/height??
+      this.#specificSize = new Size(in_value, in_value);
+      this.#size = new Size(this.#sizeScale * in_value, this.#sizeScale * in_value);
+    }
+    //now calculate offset
+    this.#calcOffset();
     //also update our object??
     this.#element.style.width = this.#size.width + "px";
     this.#element.style.height = this.#size.height + "px";
@@ -2885,6 +2913,7 @@ class PauseScene {
     this.#parentWindow = in_parent_window;
     this.#active = false;
     this.#fader = new SceneFader(SceneFader.FADE_BLACK, 0.5, 4);
+    this.#fader.specificSize = new Size(in_parent_window.windowElement.clientWidth, in_parent_window.windowElement.clientHeight);
 
     this.#element = document.createElement("div");
     this.#element.style.zIndex = this.#baseDepth;
