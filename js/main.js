@@ -29,6 +29,7 @@ const GRASS_L_NAME = "assets/grass/grass_l_";
 const FLOWER_OPTIONS = 4;
 const TREE_OPTIONS = 4;
 const GROUND_EFFECTS_OPTIONS = 4;
+const FADE_COLORS = ["assets/black_200.png", "assets/white_200.png"];
 
 const FPS_FPS = 30;
 const SECONDS_TO_RUN = 15;
@@ -116,6 +117,7 @@ class Game {
   #gameTimer;
   #targetFPS;
   #targetFrameTime;
+  #dayEnded;
 
   #counter = 0;
   #totalTimeElapsed = 0;
@@ -127,10 +129,16 @@ class Game {
   #runEarlyUpdate = [];
   #runUpdate = [];
   #runLateUpdate = [];
+  #runUpdateDay = [];
 
   #gameWindow;
   #charWindow;
   //other window(s)...
+
+  //game control / flow flags
+  #paused;
+  #dayEnding;
+  #dayEndingCompleted;
 
   constructor(in_FPS) {
     this.#gameTime = new GameTime();
@@ -138,6 +146,7 @@ class Game {
     this.#gameTimer.registerTimer(this.#gameTime)
     this.#targetFPS = in_FPS? in_FPS : 15;
     this.#targetFrameTime = 1000 / this.#targetFPS;
+    this.#dayEnded = false;
   }
 
   set targetFPS(in_FPS) {
@@ -161,9 +170,15 @@ class Game {
     }
   }
 
-  //this guy gets called before looping?
+  //this guy gets called before looping?  I guess this isn't so much as start as it is "OnAwake" 
+  //  or whatever.
   start() {
-    this.#gameTimer.register(this.#gameTime)
+    //add this guy to the inputhandler..
+    InputHandler.Instance().addInputListener(this, true);
+
+    this.#elementTimeUpdate = document.getElementById("timeUpdate");
+
+    //and do I call the gameloop from here??  Or have it called externally?
   }
 
   //this guy is our looper..
@@ -171,14 +186,25 @@ class Game {
   //  I probably need to track every few, and adjust?  is it worth it?
   //create an array that looks at the last 3 or 5 frames, and adjusts based on that?
   gameLoop() {
-    this.#counter++;
     //update our gameTimer..
     this.#gameTimer.update(this.#gameTime);
+
+    //here's total time elapsed..
     this.#totalTimeElapsed += this.#gameTimer.timeElapsed;
-    //document.getElementById("timeUpdate").innerText = "z";
-    if (this.#elementTimeUpdate === null) {
-      this.#elementTimeUpdate = document.getElementById("timeUpdate");
+    //do I want to differentiate between paused time and played time?  Do I use totalTimeElapsed for anything...?
+
+    //SO... IF WE ARE PAUSED....  WHAT DO WE DO??  We skip running stuff..
+    if (this.#paused) {
+      //just call the timeout and return.  at least for the moment...
+      this.#gameLoopRepeat();
+      return;
     }
+
+    this.#counter++;
+
+    //if (this.#elementTimeUpdate === null) {
+    //  this.#elementTimeUpdate = document.getElementById("timeUpdate");
+    //}
     this.#elementTimeUpdate.innerText = this.#counter + " time elapsed: " + this.#gameTimer.timeElapsed + ", target: " + this.#targetFrameTime;
 
     //now go through all our objects....
@@ -192,10 +218,31 @@ class Game {
     //  or deleted, etc list....  Then I guess we need to check if there are any undisabled?
     //now go through all earlyUpdates, then updates, then lateUpdates.
     this.#runEarlyUpdate.forEach(vv_object => vv_object.earlyUpdate());
-    this.#runUpdate.forEach(vv_object => vv_object.update());
-    this.#runLateUpdate.forEach(vv_object => vv_object.lateUpdate());
 
-    //finally, we need to call the loop again!  using setTimeout!
+    //right here check for day end..
+    if (this.#dayEnded) {
+      //fade to black??
+
+
+      //once faded to black, runUpdateDay() objects??
+      this.#runUpdateDay.forEach(vv_object => vv_object.updateDay());
+
+      //and finally 
+      this.#dayEnded = false;
+    }
+    else {
+      this.#runUpdate.forEach(vv_object => vv_object.update());
+      this.#runLateUpdate.forEach(vv_object => vv_object.lateUpdate());
+    }
+
+
+    //finally, we need to call the loop again!
+    this.#gameLoopRepeat();
+    //the gameloop ends...
+  }
+
+  #gameLoopRepeat() {
+    //we need to call the loop again!  using setTimeout!
     //we want to wait our target time - time to process.. (which is now - last time)
     //soo.. we have a target framerate??  Let's say it's 30 fps..
     //  that gives us .033 seconds..  we want to wait .033 - (Date.now() - this.#gameTime.l)
@@ -211,9 +258,8 @@ class Game {
     document.getElementById("elapsedTime").innerText = this.#totalTimeElapsed;
 
     if (this.#counter < SECONDS_TO_RUN * FPS_FPS) {
-     setTimeout(() => { this.gameLoop() }, tmp_remaining_time > 0 ? tmp_remaining_time : 0);
+      setTimeout(() => { this.gameLoop() }, tmp_remaining_time > 0 ? tmp_remaining_time : 0);
     }
-    //the gameloop ends...
   }
 
   //sooOOOooo.... objects.  Game.  Every object handed here needs to be updated at some point.
@@ -241,6 +287,56 @@ class Game {
     }
   }
 
+  //The day has ended! We must flag things
+  dayEnded() {
+    //flag that the day has ended..
+    this.#dayEnded = true;
+  }
+
+  //OK.. let's give this guy a try.  onKeyUp... do we just leave it at that?  And have this object
+  //  check the specific key??  It's that or something crazy like "register a onKeyUpEscape" etc..
+  //  This should be fine...
+  onKeyUp(in_key_action) {
+    //we care if they've hit the escape key!
+    if (in_key_action.name !== "Escape") {
+      //don't caaare
+      return;
+    }
+
+    //now the question is: are we pausing or UNpausing!
+    if (this.#paused) {
+      //we're unpausing.
+      this.#unpause();
+    }
+    else {
+      //we must pause!  do we do it immediately??  Or do we wait til the game loop?  And by "do it immediately",
+      //  I mean call anything that's of the "onPause()" type!
+      //just call pause() ..
+      this.#pause();
+    }
+  }
+  
+  #pause() {
+    this.#paused = true;
+    //we need to call our Pause scene fader.
+
+    //we need to call anything with an onPause() .. pretty much have anything that reads input ignore input.
+    //  can we have that handled at the input level??
+    //Also anything that takes input needs to clear its input flags.. ie...  "key down, so moving..".  If 
+    //  the key is down, then hit escape, then hit escape again to get out, while still holding down a key..
+    //  do I let them keep on going?  Probably... Then I guess that really just means we don't have to do 
+    //  anything...??  Well.... No. beacuse they can't load up on clicks n shit.  Imagine if we were a
+    //  shooting game...  key key key key key.  then unpause, and it would unlooooad!  Okay.  Clear and 
+    //  ignore..  hmm...
+  }
+
+  #unpause() {
+    this.#paused = false;
+    //we need to call our Pause scene fader.
+
+    //do we need to anything else?
+  }
+
   set gameWindow(in_value) {
     this.#gameWindow = in_value;
   }
@@ -255,6 +351,47 @@ class Game {
   }
 }
 
+//Our Day class!  This, umm... tracks a day!
+//At the end of a day:
+//  call all objects that have updateDay()
+//  increase our day..
+//  Somehow start a new day / trigger some kind of animation / visual that goes dark, and comes back up...
+//    this would need to pause the game play?  Needs to be able to talk to Game object to do that?
+class Day {
+  #currentTime = 0;
+  #currentDay = 0;
+
+  #timeInDay;
+
+  #runUpdateDay = [];
+
+  constructor(in_time_in_day) {
+    this.#timeInDay = in_time_in_day;
+
+  }
+
+  update() {
+    //update our day timer...
+    this.#currentTime += Game.Instance.timer().timeElapsed();
+
+    //throughout the day, change stuff like background, lighting, etc...  maybe certain things only
+    //  come out at certain times of the day??
+
+    //if it's the end of the day, do we flag that?  And then things magically happen?  Or do we
+    //  just start doing shit???  I think flag it..
+    if (this.#currentTime >= this.#timeInDay) {
+      //end of the day!!  Let the game know!!
+      Game.Instance().dayEnded();
+    }
+  }
+
+  get howMuchOfDayCompleted() {
+    return this.#currentTime / this.#timeInDay;
+  }
+  get currentDay() {
+    return this.#currentDay;
+  }
+}
 
 //umm..  create an object to store each button press, I guess.
 class InputAction {
@@ -305,6 +442,16 @@ class InputHandler {
   #overlayElement;
   #allHTMLElements = [];
 
+  //list of listeners for the available actions...
+  #runOnKeyUp = [];
+  #runOnKeyDown = [];
+  #runOnClick = [];  //should this be on click UP??
+  #runOnClickDown = [];
+  #runOnKeyUpPause = [];
+  #runOnKeyDownPause = [];
+  #runOnClickPause = [];
+  #runOnClickDownPause = [];
+
   constructor() {
     //to do...
     this.testValue = "null";
@@ -332,6 +479,93 @@ class InputHandler {
       InputHandler.#instance = new InputHandler();
       InputHandler.#instance.testValue = "did not exist!";
       return InputHandler.#instance;
+    }
+  }
+
+  //any objects that want to listen for input call here!  And have one (or more) of the following methods:
+  //  onKeyUp(in_key)
+  //  onKeyDown(in_key)
+  //  onClick(in_click)
+  //  onClickDown(in_click)
+  //  any others??
+  addInputListener(in_listener, in_listen_on_pause) {
+    //check if the listener has any of the methods!
+    if (typeof in_listener.onKeyUp === "function") {
+      if (in_listen_on_pause) {
+        this.#runOnKeyUpPause.push(in_listener);
+      }
+      this.#runOnKeyUp.push(in_listener);
+    }
+    if (typeof in_listener.onKeyDown === "function") {
+      if (in_listen_on_pause) {
+        this.#runOnKeyDownPause.push(in_listener);
+      }
+      this.#runOnKeyDown.push(in_listener);
+    }
+    if (typeof in_listener.onClick === "function") {
+      if (in_listen_on_pause) {
+        this.#runOnClickPause.push(in_listener);
+      }
+      this.#runOnClick.push(in_listener);
+    }
+    if (typeof in_listener.onClickDown === "function") {
+      if (in_listen_on_pause) {
+        this.#runOnClickDownPause.push(in_listener);
+      }
+      this.#runOnClickDown.push(in_listener);
+    }
+  }
+
+  removeInputListener(in_listener, in_listen_on_pause) {
+    //uhhh.... shittake..
+    let tmp_found = -1;
+    if (typeof in_listener.onKeyUp === "function") {
+      if (in_listen_on_pause) {
+        tmp_found = this.#runOnKeyUpPause.findIndex(in_listener);
+        if (tmp_found > -1) {
+          this.#runOnKeyUpPause.splice(tmp_found, 1);
+        }
+      }
+      tmp_found = this.#runOnKeyUp.findIndex(in_listener);
+      if (tmp_found > -1) {
+        this.#runOnKeyUp.splice(tmp_found, 1);
+      }
+    }
+    if (typeof in_listener.onKeyDown === "function") {
+      if (in_listen_on_pause) {
+        tmp_found = this.#runOnKeyDownPause.findIndex(in_listener);
+        if (tmp_found > -1) {
+          this.#runOnKeyDownPause.splice(tmp_found, 1);
+        }
+      }
+      tmp_found = this.#runOnKeyDown.findIndex(in_listener);
+      if (tmp_found > -1) {
+        this.#runOnKeyDown.splice(tmp_found, 1);
+      }
+    }
+    if (typeof in_listener.onClick === "function") {
+      if (in_listen_on_pause) {
+        tmp_found = this.#runOnClickPause.findIndex(in_listener);
+        if (tmp_found > -1) {
+          this.#runOnClickPause.splice(tmp_found, 1);
+        }
+      }
+      tmp_found = this.#runOnClick.findIndex(in_listener);
+      if (tmp_found > -1) {
+        this.#runOnClick.splice(tmp_found, 1);
+      }
+    }
+    if (typeof in_listener.onClickDown === "function") {
+      if (in_listen_on_pause) {
+        tmp_found = this.#runOnClickDownPause.findIndex(in_listener);
+        if (tmp_found > -1) {
+          this.#runOnClickDownPause.splice(tmp_found, 1);
+        }
+      }
+      tmp_found = this.#runOnClickDown.findIndex(in_listener);
+      if (tmp_found > -1) {
+        this.#runOnClickDown.splice(tmp_found, 1);
+      }
     }
   }
 
@@ -388,7 +622,15 @@ class InputHandler {
         //       a key down...
         tmp_pressed = this.#current.find(vv_cur => vv_cur.type == InputAction.TYPE_KEY && vv_cur.name == inn_event.code);
         if (tmp_pressed) {
-          //we found it!  We can just return...
+          //we found it!  We can just return...  I think...
+          //So if we've found it in pressed down..  do we ignore that?  Or could it be that they did the press,
+          //  leave focus from the page, and then came back and pressed again...  Probably should send again
+          //  just in case.  They'll know if they already have onKeyDown pressed.
+          //We DON'T need to re-draw the key-press, though.. that's already up.
+
+          //we need to let any onKeyDown listeners know!
+          this.#runOnKeyDown.forEach(vv_object => vv_object.onKeyDown(tmp_pressed));
+
           return;
         }
         else {
@@ -401,8 +643,14 @@ class InputHandler {
           //and we KNOW the index in all (last location), so we can save that!
           tmp_all_index = this.#all.length - 1;
         }
+
+        //no idea why these are outside the ELSE statement... weird.  but whatever.
+
         //now draw/update the overlay!
         this.#drawOverlay(tmp_all_index, tmp_pressed);
+
+        //we need to let any onKeyDown listeners know!
+        this.#runOnKeyDown.forEach(vv_object => vv_object.onKeyDown(tmp_pressed));
 
         //and we can return!
         return;
@@ -434,9 +682,11 @@ class InputHandler {
       this.#current.push(tmp_pressed);
       this.#currentMap.set(tmp_pressed.name, tmp_pressed);
 
-
       //now draw/update the overlay!
       this.#drawOverlay(tmp_all_index, tmp_pressed);
+
+      //we need to let any onKeyDown listeners know!
+      this.#runOnKeyDown.forEach(vv_object => vv_object.onKeyDown(tmp_pressed));
 
     }, false);
 
@@ -491,6 +741,9 @@ class InputHandler {
         //now draw/update the overlay!
         this.#drawOverlay(tmp_all_index, tmp_pressed);
 
+        //we need to let any onKeyUp listeners know!
+        this.#runOnKeyUp.forEach(vv_object => vv_object.onKeyUp(tmp_pressed));
+
         //and we're done...
         return;
       }
@@ -509,6 +762,9 @@ class InputHandler {
 
       //now draw/update the overlay!  tmp_all_index is -1...
       this.#drawOverlay(tmp_all_index, tmp_pressed);
+
+      //we need to let any onKeyUp listeners know!
+      this.#runOnKeyUp.forEach(vv_object => vv_object.onKeyUp(tmp_pressed));
 
     }, false);
   }
@@ -656,8 +912,7 @@ class InputHandler {
     });
   }
 }
-//TODO add callbacks / listeners for anything that cares about input..  then I don't need to waste time 
-//  checking for input that isn't there?
+
 
 //class for animated actions of objects?  I dunoo.....
 class Animation {
@@ -2270,6 +2525,116 @@ class Boundary {
 //  Game Objects!  ....?
 //---===---===---===---===---
 
+//this fades the scene... to whatever image is chosen.
+//sooo... let's say this guy isn't tied to the game.  It should be tied to something else that handles
+//  it...  PauseSceneLayer?
+class SceneFader extends GameObject {
+  static FADE_BLACK = 1;
+  static FADE_WHITE = 2;
+
+  #currentFade;
+  #maxFade;
+  #fadeSpeed;
+  #frameTime;
+
+  #timer;
+
+  constructor(in_fade_to_color, in_max_fade, in_fade_speed_seconds) {
+    super();
+    this.#currentFade = 0;
+    this.#maxFade = in_max_fade;
+    this.#fadeSpeed = in_fade_speed_seconds * 1000;
+    this.#frameTime = Math.round(1000/60);
+
+    this.location = new Location(0, 0, 0);
+    this.locationPoint = GameObject.LOC_TL;
+
+    let tmp_file_name;
+    if (in_fade_to_color === SceneFader.FADE_BLACK) {
+      //use black color!
+      tmp_file_name = FADE_COLORS[0];
+    }
+    else {
+      tmp_file_name = FADE_COLORS[1];
+    }
+    this.setImage(tmp_file_name, FileLoader.Instance().getFile(tmp_file_name));
+    this.element.style.opacity = this.#currentFade;
+
+    //now create our own timer.
+    this.#timer = new GameTime();
+  }
+
+  //this fades from zero to whatever %
+  fadeOut(in_callback, in_speed_seconds_optional) {
+    let tmp_speed = this.#fadeSpeed;
+    let tmp_use_optional = false;
+    if (in_speed_seconds_optional) {
+      //override the default!
+      tmp_use_optional = true;
+      tmp_speed = in_speed_seconds_optional * 1000;
+    }
+    //keep calling ourself until fully faded, then call the callback to let it know!
+    this.#timer.update();
+
+    this.#currentFade += (this.#timer.elapsedTime / this.#fadeSpeed) * this.#maxFade;
+    if (this.#currentFade >= this.#maxFade) {
+      //we are done!
+      this.#currentFade = this.#maxFade;
+      this.element.style.opacity = this.#currentFade;
+      in_callback();
+      return;
+    }
+    else {
+      //keep going!
+      this.element.style.opacity = this.#currentFade;
+
+      //and callourself!
+      if (tmp_use_optional) {
+        setTimeout(() => { this.fadeOut(in_callback, in_speed_seconds_optional) }, this.#frameTime);
+      }
+      else {
+        setTimeout(() => { this.fadeOut(in_callback) }, this.#frameTime);
+      }
+    }
+
+  }
+
+  //this fades from whatever % we're at, back to zero
+  fadeIn(in_callback, in_speed_seconds_optional) {
+    let tmp_speed = this.#fadeSpeed;
+    let tmp_use_optional = false;
+    if (in_speed_seconds_optional) {
+      //override the default!
+      tmp_use_optional = true;
+      tmp_speed = in_speed_seconds_optional * 1000;
+    }
+    //keep calling ourself until fully faded, then call the callback to let it know!
+    this.#timer.update();
+
+    this.#currentFade -= (this.#timer.elapsedTime / this.#fadeSpeed) * this.#maxFade;
+    if (this.#currentFade <= 0) {
+      //we are done!
+      this.#currentFade = 0;
+      this.element.style.opacity = this.#currentFade;
+      in_callback();
+      return;
+    }
+    else {
+      //keep going!
+      this.element.style.opacity = this.#currentFade;
+
+      //and callourself!
+      if (tmp_use_optional) {
+        setTimeout(() => { this.fadeIn(in_callback, in_speed_seconds_optional) }, this.#frameTime);
+      }
+      else {
+        setTimeout(() => { this.fadeIn(in_callback) }, this.#frameTime);
+      }
+    }
+
+  }
+}
+
 //--------------------
 //   COW
 //--------------------
@@ -2304,6 +2669,15 @@ class ControllableCow extends GameObject {
     //we can probably pick the cow image here..  some kind of cow builder for all cows.
     super();
     this.#boundary = new Boundary(0, 60, 0, -60);
+  }
+
+  begin() {
+    //add this guy to the inputhandler..
+    InputHandler.Instance().addInputListener(this, false);
+    //TODO add event listening as methods rather than in the update..
+
+    //TODO..  I forget how to do it... have object movement be a bit of its own entity..  So we can 
+    //  easily swap between person input and automated control
   }
 
   //cow definitely needs an udpate.  To mooOOOooove!
@@ -2444,6 +2818,79 @@ class Flower {
 
 class Tree {
 
+}
+
+//This is kiinda like a Scene layer, but isn't as complicated, so I'm making it its own thing.
+//Well.. this is just 1.  I could make this a singleton...??
+class PauseScene {
+  #baseDepth;
+  #parentWindow;
+
+  #element;
+  #fader;
+
+  #active
+
+  constructor(in_parent_window) {
+    this.#baseDepth = 10;
+    this.#parentWindow = in_parent_window;
+    this.#active = false;
+    this.#fader = new SceneFader(SceneFader.FADE_BLACK, 0.5, 0.3);
+
+    this.#element = document.createElement("div");
+    this.#element.style.zIndex = this.#baseDepth;
+    this.#element.classList.add("sceneLayer");
+    this.#element.style.width = in_parent_window.windowElement.clientWidth + "px";
+    this.#element.style.height = in_parent_window.windowElement.clientHeight + "px";
+
+    this.addStaticObject(this.#fader);
+
+    //let's register ourself with the input handler!
+    InputHandler.Instance().addInputListener(this, true);
+  }
+
+  addStaticObject(in_game_object) {
+    //this.#staticGameObjects.push(in_game_object);
+    //give it the right scale, and we should be good...
+    //in_game_object.sizeScale = this.#parentWindow.windowScale;
+    //no scaling or changing of location for scene loc
+    in_game_object.sceneLocation = new Location(in_game_object.location.x, in_game_object.location.y, in_game_object.location.z);
+    this.#element.appendChild(in_game_object.element);
+  }
+
+
+  onKeyUp(in_key_action) {
+    if (in_key_action.name !== "Escape") {
+      //don't caaare
+      return;
+    }
+
+    //OK... are we paused at the moment??
+    if (this.#active) {
+      //we are paused!  We need to unfade and remove ourself from the DOM.
+      this.#fader.fadeOut(this.fadeComplete);
+    }
+    else {
+      //we need to pause!  Add ourself to the DOM and hit the fader.
+      this.#parentWindow.windowElement.appendChild(this.#element);
+
+      this.#fader.fadeIn(this.fadeComplete);
+    }
+  }
+
+  fadeComplete() {
+    //cool.  the fader is done!  If we're unpaused, we remove ourself from the DOM..
+    //if we're paused, do we add the other PAUSE overlay stuff?
+    if (this.#active) {
+      //umm..  add othre stuff?
+      console.log("FADE IN COMPLETED!!");
+    }
+    else {
+      //remove ourself from the dom!
+      console.log("FADE -out- COMPLETED!!");
+      this.#parentWindow.parentElement.removeChild(this.#element);
+    }
+  }
 }
 
 //---===---===---===---===---
@@ -2759,6 +3206,46 @@ function pastureLayerBuild(in_window) {
   return tmp_layer;
 }
 
+function PauseOverlayPreBuild() {
+
+}
+function PauseOverlayBuild(in_window) {
+  const zIndex = 10;
+
+  //What the fuck are paramters 2 and 3?? horizontal and vertical ratio??  To what?  They aren't used at all..
+  //  I wonder what the plan for those was...  hmmmm....
+  let tmp_layer = new SceneLayer(zIndex, 1, 0, 1, in_window);
+
+  //gotta create our scene..
+  //first is the background... we'll use a scene fader..
+  let tmp_obj = new SceneFader(SceneFader.FADE_BLACK, 0.6, 0.4);
+  //this guy is at the back of our scene..
+  tmp_obj.location = new Location(0, 0, -2);
+  tmp_layer.addStaticObject(tmp_obj);
+
+  return tmp_layer;
+
+}
+function DayEndOverlayPreBuild() {
+
+}
+function DayEndOverlayBuild(in_window) {
+  const zIndex = 9;
+
+  //What the fuck are paramters 2 and 3?? horizontal and vertical ratio??  To what?  They aren't used at all..
+  //  I wonder what the plan for those was...  hmmmm....
+  let tmp_layer = new SceneLayer(zIndex, 1, 0, 1, in_window);
+
+  //gotta create our scene..
+  //first is the background... we'll use a scene fader..
+  let tmp_obj = new SceneFader(SceneFader.FADE_BLACK, 0.8, 2);
+  //this guy is at the back of our scene..
+  tmp_obj.location = new Location(0, 0, -2);
+  tmp_layer.addStaticObject(tmp_obj);
+
+  return tmp_layer;
+}
+
 //ummm..... GameWindow is where our game happens...  externally, I'm telling the gamewindow what z-index each thing 
 //  needs to be on.  However, the pasture horizon is a point where some objects change z-index...
 //I'm going to need to give a distance to whatever handles the horizon, etc, and then that needs to change the z-index 
@@ -2784,6 +3271,7 @@ InputHandler.Instance().draw = true;
 //our loooop
 //start the game loop!!  (it repeats itself)
 game.targetFPS = FPS_FPS;
+game.start();
 game.gameLoop();
 
 //how do we get the screen width and height??
@@ -2846,6 +3334,7 @@ skyList.forEach(vv_img => PreloadHandler.Instance().addFile(vv_img));
 hillList.forEach(vv_img => PreloadHandler.Instance().addFile(vv_img));
 farFieldList.forEach(vv_img => PreloadHandler.Instance().addFile(vv_img));
 pastureList.forEach(vv_img => PreloadHandler.Instance().addFile(vv_img));
+FADE_COLORS.forEach(vv_img => PreloadHandler.Instance().addFile(vv_img));
 
 PreloadHandler.Instance().loadAll(imagesLoaded);
 console.log("ready ready");
@@ -2875,6 +3364,9 @@ function imagesLoaded() {
   tmp_char_canvas.right = "assets/canvas_edge_v_right.png";
   tmp_char_canvas.top = "assets/canvas_edge_h_top.png";
   tmp_char_canvas.createCanvas();
+
+  let tmp_pause_scene = new PauseScene(gameWindow);
+  //aand we don't need to do anything else with PauseScene!
 
   let tmp_sky_scene = skyLayerBuild(gameWindow);
   let tmp_hill_scene = hillLayerBuild(gameWindow);
