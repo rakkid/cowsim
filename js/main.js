@@ -2532,6 +2532,8 @@ class Boundary {
 //this fades the scene... to whatever image is chosen.
 //sooo... let's say this guy isn't tied to the game.  It should be tied to something else that handles
 //  it...  PauseSceneLayer?
+//What happens if we're in the middle of fading, and we get itnerrupted?  I guess we need to flag that
+//  we're in the middle of fading.  And have a checker.
 class SceneFader extends GameObject {
   static FADE_BLACK = 1;
   static FADE_WHITE = 2;
@@ -2562,28 +2564,36 @@ class SceneFader extends GameObject {
     }
     this.setImage(tmp_file_name, FileLoader.Instance().getFile(tmp_file_name));
     this.element.style.opacity = this.#currentFade;
-
-    //now create our own timer.
-    this.#timer = new GameTime();
   }
 
   //this fades from zero to whatever %
-  fadeOut(in_callback, in_speed_seconds_optional) {
+  fadeIn(in_callback, in_speed_seconds_optional) {
+    //create our own timer.
+    this.#timer = new GameTime();
+
     let tmp_speed = this.#fadeSpeed;
-    let tmp_use_optional = false;
     if (in_speed_seconds_optional) {
       //override the default!
-      tmp_use_optional = true;
       tmp_speed = in_speed_seconds_optional * 1000;
     }
+    this.#fadeInInternal(in_callback, tmp_speed);
+  }
+
+  //should I not bother having all the checks in the one above, and just call a specific function for the 
+  //  repeating?
+  #fadeInInternal(in_callback, in_speed_millis) {
     //keep calling ourself until fully faded, then call the callback to let it know!
     this.#timer.update();
-
-    this.#currentFade += (this.#timer.elapsedTime / this.#fadeSpeed) * this.#maxFade;
+    console.log("elapsed: " + this.#timer.timeElapsed + ", speed: " + in_speed_millis + ", maxFade: " + this.#maxFade);
+    this.#currentFade += (this.#timer.timeElapsed / in_speed_millis) * this.#maxFade;
+    console.log("Fade IN! " + this.#currentFade);
     if (this.#currentFade >= this.#maxFade) {
       //we are done!
       this.#currentFade = this.#maxFade;
       this.element.style.opacity = this.#currentFade;
+      //clear our timer...?  We don't really need to, but we'll be replacing it the next time we're called,
+      //  so might as well...?
+      this.#timer = null;
       in_callback();
       return;
     }
@@ -2591,34 +2601,36 @@ class SceneFader extends GameObject {
       //keep going!
       this.element.style.opacity = this.#currentFade;
 
-      //and callourself!
-      if (tmp_use_optional) {
-        setTimeout(() => { this.fadeOut(in_callback, in_speed_seconds_optional) }, this.#frameTime);
-      }
-      else {
-        setTimeout(() => { this.fadeOut(in_callback) }, this.#frameTime);
-      }
+      setTimeout(() => { this.#fadeInInternal(in_callback, in_speed_millis) }, this.#frameTime);
     }
-
   }
 
   //this fades from whatever % we're at, back to zero
-  fadeIn(in_callback, in_speed_seconds_optional) {
+  fadeOut(in_callback, in_speed_seconds_optional) {
+    //create our own timer.
+    this.#timer = new GameTime();
+
     let tmp_speed = this.#fadeSpeed;
-    let tmp_use_optional = false;
     if (in_speed_seconds_optional) {
       //override the default!
-      tmp_use_optional = true;
       tmp_speed = in_speed_seconds_optional * 1000;
     }
+    this.#fadeOutInternal(in_callback, tmp_speed);
+  }
+
+  #fadeOutInternal(in_callback, in_speed_millis) {
     //keep calling ourself until fully faded, then call the callback to let it know!
     this.#timer.update();
-
-    this.#currentFade -= (this.#timer.elapsedTime / this.#fadeSpeed) * this.#maxFade;
+    console.log("elapsed: " + this.#timer.timeElapsed + ", speed: " + in_speed_millis + ", maxFade: " + this.#maxFade);
+    this.#currentFade -= (this.#timer.timeElapsed / in_speed_millis) * this.#maxFade;
+    console.log("Fade OUT! " + this.#currentFade);
     if (this.#currentFade <= 0) {
       //we are done!
       this.#currentFade = 0;
       this.element.style.opacity = this.#currentFade;
+      //clear our timer...?  We don't really need to, but we'll be replacing it the next time we're called,
+      //  so might as well...?
+      this.#timer = null;
       in_callback();
       return;
     }
@@ -2626,15 +2638,8 @@ class SceneFader extends GameObject {
       //keep going!
       this.element.style.opacity = this.#currentFade;
 
-      //and callourself!
-      if (tmp_use_optional) {
-        setTimeout(() => { this.fadeIn(in_callback, in_speed_seconds_optional) }, this.#frameTime);
-      }
-      else {
-        setTimeout(() => { this.fadeIn(in_callback) }, this.#frameTime);
-      }
+      setTimeout(() => { this.#fadeOutInternal(in_callback, in_speed_millis) }, this.#frameTime);
     }
-
   }
 }
 
@@ -2832,13 +2837,13 @@ class PauseScene {
   #element;
   #fader;
 
-  #active
+  #active;
 
   constructor(in_parent_window) {
-    this.#baseDepth = 10;
+    this.#baseDepth = 9;
     this.#parentWindow = in_parent_window;
     this.#active = false;
-    this.#fader = new SceneFader(SceneFader.FADE_BLACK, 0.5, 0.3);
+    this.#fader = new SceneFader(SceneFader.FADE_BLACK, 0.5, 4);
 
     this.#element = document.createElement("div");
     this.#element.style.zIndex = this.#baseDepth;
@@ -2873,13 +2878,22 @@ class PauseScene {
     //OK... are we paused at the moment??
     if (this.#active) {
       //we are paused!  We need to unfade and remove ourself from the DOM.
-      this.#fader.fadeOut(this.fadeComplete);
+      //flag that we're not paused anyomre
+      this.#active = false;
+      this.#fader.fadeOut(() => {this.fadeComplete()});
     }
     else {
+      //flag that we're Paused!
+      this.#active = true;
       //we need to pause!  Add ourself to the DOM and hit the fader.
       this.#parentWindow.windowElement.appendChild(this.#element);
-
-      this.#fader.fadeIn(this.fadeComplete);
+      //NOTE the wrapped "this.fadeComplete()"..  it's wrapped in a function, since otherwise, "this"
+      //  doesn't get the right context..
+      //  (if we were to do the second line, then "this" gets interpreted as the window..)
+      //  see: https://developer.mozilla.org/en-US/docs/Web/API/setTimeout
+      //  bind() is something that can also be used.. I didn't really read it, since this works.
+      this.#fader.fadeIn(() => {this.fadeComplete()});
+      //this.#fader.fadeIn(this.fadeComplete);
     }
   }
 
@@ -2893,7 +2907,7 @@ class PauseScene {
     else {
       //remove ourself from the dom!
       console.log("FADE -out- COMPLETED!!");
-      this.#parentWindow.parentElement.removeChild(this.#element);
+      this.#parentWindow.windowElement.removeChild(this.#element);
     }
   }
 }
