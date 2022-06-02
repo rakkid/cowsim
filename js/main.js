@@ -1069,7 +1069,7 @@ class GameObject {
       tmp_x_offset = 0;
       tmp_y_offset = 0;
     }
-    else if (this.#locationPoint === GameObject.LOC_CC) {
+    else if (this.#locationPoint === GameObject.LOC_TL) {
       //top-left:
       //  width is 0
       //  height is -  height
@@ -1149,6 +1149,10 @@ class GameObject {
       this.#element.src = in_loaded.src;
       this.#element.classList.add("sceneElement");
     }
+
+    //aaand set default size scale.
+    this.sizeScale = 1;
+
   }
   set baseAnimation(in_value) {
     if (! in_value instanceof Animation) {
@@ -2547,7 +2551,6 @@ class SceneFader extends GameObject {
     this.#frameTime = Math.round(1000/60);
 
     this.location = new Location(0, 0, 0);
-    this.locationPoint = GameObject.LOC_TL;
 
     let tmp_file_name;
     if (in_fade_to_color === SceneFader.FADE_BLACK) {
@@ -2840,6 +2843,8 @@ class PauseScene {
     this.#element = document.createElement("div");
     this.#element.style.zIndex = this.#baseDepth;
     this.#element.classList.add("sceneLayer");
+    //RIGHT HERE:  TODO  GameObject doesn't support overridden sizes..  TODO.  Could do this as a size scale...
+    //  size scale 200 x 6 = 1200.
     this.#element.style.width = in_parent_window.windowElement.clientWidth + "px";
     this.#element.style.height = in_parent_window.windowElement.clientHeight + "px";
 
