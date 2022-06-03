@@ -23,6 +23,7 @@
 //  don't actually have a problem.  Snazzywazzy.
 //  https://developer.mozilla.org/en-US/docs/Glossary/Hoisting
 
+//what kind of time should I have a day be??  What a question..  20?
 
 const IMG_TYPE = "png";
 const HILL_OPTIONS = 4;
@@ -36,6 +37,11 @@ const FLOWER_OPTIONS = 4;
 const TREE_OPTIONS = 4;
 const GROUND_EFFECTS_OPTIONS = 4;
 const FADE_COLORS = ["assets/black_200.png", "assets/white_200.png"];
+const TIME_IN_DAY_MINUTES = 0.4;
+const GAME_SPEED_MANUAL = 1;
+const GAME_SPEED_AUTO = 3;  //maybe let it be adjustable??
+//I want to include a game speed!  So when no one's playing, and the game is auto-playing, it plays in faster
+//  time???  TODO
 
 const FPS_FPS = 30;
 const SECONDS_TO_RUN = 15;
@@ -124,6 +130,7 @@ class Game {
 	#targetFPS;
 	#targetFrameTime;
 	#dayEnded;
+	#startNewDay;
 
 	#counter = 0;
 	#totalTimeElapsed = 0;
@@ -136,7 +143,8 @@ class Game {
 	#runEarlyUpdate = [];
 	#runUpdate = [];
 	#runLateUpdate = [];
-	#runUpdateDay = [];
+	#runUpdateDayEnd = [];
+	#runUpdateDayNew = [];
 
 	#gameWindow;
 	#charWindow;
@@ -147,6 +155,9 @@ class Game {
 	#dayEnding;
 	#dayEndingCompleted;
 
+	//wow, I don't really have much tracking stuff... I think I want to put the day here..
+	#currentDay = 1;
+
 	constructor(in_FPS) {
 		this.#gameTime = new GameTime();
 		this.#gameTimer = new GameTimer();
@@ -154,6 +165,7 @@ class Game {
 		this.#targetFPS = in_FPS? in_FPS : 15;
 		this.#targetFrameTime = 1000 / this.#targetFPS;
 		this.#dayEnded = false;
+		this.#startNewDay = false;
 	}
 
 	set targetFPS(in_FPS) {
@@ -208,9 +220,36 @@ class Game {
 			return;
 		}
 
+		//the end of a day!!  What do we do here?  Call anythign that has updateDayEnd()
+		//  one of those things will be our update scene!
+		if (this.#dayEnded) {
+
+			//check if we now have a new day!
+			if (this.#startNewDay) {
+				//ohh!  New day!!
+				this.#dayEnded = false;
+				this.#startNewDay = false;
+				//increment our day!
+				this.#currentDay += 1;
+
+				//call anything with updateDayNew()!
+				this.#runUpdateDayNew.forEach(vv_object => vv_object.updateDayEnd());
+
+				//do I call the loop, or do we go straight into update??
+			}
+			else {
+				//once faded to black, runUpdateDay() objects??
+				this.#runUpdateDayEnd.forEach(vv_object => vv_object.updateDayEnd());
+
+			}
+
+			this.#gameLoopRepeat();
+			return;
+		}
+
 		//update gameTimeElapsed..
 		this.#gameTimeElapsed += this.#gameTimer.timeElapsed;
-		this.#counter++;
+		//this.#counter++;
 
 		//if (this.#elementTimeUpdate === null) {
 		//  this.#elementTimeUpdate = document.getElementById("timeUpdate");
@@ -228,22 +267,8 @@ class Game {
 		//  or deleted, etc list....  Then I guess we need to check if there are any undisabled?
 		//now go through all earlyUpdates, then updates, then lateUpdates.
 		this.#runEarlyUpdate.forEach(vv_object => vv_object.earlyUpdate());
-
-		//right here check for day end..
-		if (this.#dayEnded) {
-			//fade to black??
-
-
-			//once faded to black, runUpdateDay() objects??
-			this.#runUpdateDay.forEach(vv_object => vv_object.updateDay());
-
-			//and finally 
-			this.#dayEnded = false;
-		}
-		else {
-			this.#runUpdate.forEach(vv_object => vv_object.update());
-			this.#runLateUpdate.forEach(vv_object => vv_object.lateUpdate());
-		}
+		this.#runUpdate.forEach(vv_object => vv_object.update());
+		this.#runLateUpdate.forEach(vv_object => vv_object.lateUpdate());
 
 
 		//finally, we need to call the loop again!
@@ -267,7 +292,8 @@ class Game {
 		//this.#elementTimeUpdate.innerText = this.#counter + " time to sleep: " + tmp_remaining_time + ", target: " + this.#targetFrameTime;
 		document.getElementById("elapsedTime").innerText = "game time: " + this.#gameTimeElapsed + " | total time: " + this.#totalTimeElapsed;
 
-		if (this.#counter < SECONDS_TO_RUN * FPS_FPS) {
+		//if (this.#counter < SECONDS_TO_RUN * FPS_FPS) {
+		if (this.#currentDay < 3) {
 			setTimeout(() => { this.gameLoop() }, tmp_remaining_time > 0 ? tmp_remaining_time : 0);
 		}
 	}
@@ -295,12 +321,23 @@ class Game {
 				//it has the function!
 				this.#runLateUpdate.push(in_object);
 		}
+		if (typeof in_object.updateDayEnd === "function") { 
+				//it has the function!
+				this.#runUpdateDayEnd.push(in_object);
+		}
+		if (typeof in_object.updateDayNew === "function") { 
+				//it has the function!
+				this.#runUpdateDayNew.push(in_object);
+		}
 	}
 
 	//The day has ended! We must flag things
 	dayEnded() {
 		//flag that the day has ended..
 		this.#dayEnded = true;
+	}
+	startNewDay() {
+		this.#startNewDay = true;
 	}
 
 	//OK.. let's give this guy a try.  onKeyUp... do we just leave it at that?  And have this object
@@ -359,6 +396,21 @@ class Game {
 	get characterWindow() {
 		return this.#charWindow;
 	}
+	get currentDay() {
+		return this.#currentDay;
+	}
+
+	//TODO I gotta have a function that feeds serialized game info so I can build a game with everything
+	//  from saved state!
+	//Probably don't really care about most things...  I need:
+	//  cow info (personality, age, how it's aging, etc)
+	//  field size
+	//  big things in the field / nearby (buildings, tractors, ponds, trees, etc..)
+	//  day in the game
+	//  do I care about the other cows in the field??
+	//  should I have critter friends??  Critters that keep coming back to the same spot at same time
+	//    if cow keeps going to that spot, etc.. (and maybe does soemthing interesting like jump or eat
+	//    or nap)
 }
 
 //Our Day class!  This, umm... tracks a day!
@@ -369,37 +421,44 @@ class Game {
 //    this would need to pause the game play?  Needs to be able to talk to Game object to do that?
 class Day {
 	#currentTime = 0;
-	#currentDay = 0;
 
-	#timeInDay;
+	#timeInDayMillis;
 
-	#runUpdateDay = [];
+	#dayEnded;
 
-	constructor(in_time_in_day) {
-		this.#timeInDay = in_time_in_day;
-
+	constructor(in_time_in_day_minutes) {
+		this.#timeInDayMillis = in_time_in_day_minutes * 60 * 1000;
 	}
 
 	update() {
 		//update our day timer...
-		this.#currentTime += Game.Instance.timer().timeElapsed();
+		this.#currentTime += Game.Instance().timer.timeElapsed;
+
+		//I will move all of this to DayScene!
 
 		//throughout the day, change stuff like background, lighting, etc...  maybe certain things only
 		//  come out at certain times of the day??
 
 		//if it's the end of the day, do we flag that?  And then things magically happen?  Or do we
 		//  just start doing shit???  I think flag it..
-		if (this.#currentTime >= this.#timeInDay) {
-			//end of the day!!  Let the game know!!
-			Game.Instance().dayEnded();
+		if (this.#currentTime >= this.#timeInDayMillis) {
+			//end of the day!!
+			this.#currentTime = this.#timeInDayMillis;
+			this.#dayEnded = true;
 		}
 	}
 
-	get howMuchOfDayCompleted() {
-		return this.#currentTime / this.#timeInDay;
+	//this bumps us to the new day!
+	newDay() {
+		this.#currentTime = 0;
+		this.#dayEnded = false;
 	}
-	get currentDay() {
-		return this.#currentDay;
+
+	get howMuchOfDayCompleted() {
+		return this.#currentTime / this.#timeInDayMillis;
+	}
+	get dayEnded() {
+		return this.#dayEnded;
 	}
 }
 
@@ -2881,8 +2940,8 @@ class Grass extends GameObject {
 				tmp_age = Math.floor(Math.random() * 24);
 			}
 			tmp_grass.push(new Grass(new Location(Math.random()*(tmp_right-tmp_left)+tmp_left, 
-																						0, 
-																						Math.random()*(tmp_front-tmp_rear)+tmp_rear), tmp_age));
+																0, 
+																Math.random()*(tmp_front-tmp_rear)+tmp_rear), tmp_age));
 		}
 
 		//and we're done
@@ -2992,7 +3051,99 @@ class PauseScene {
 //Yup, going with DayScene.  Think of it more like DayHandler..  It'll use the Day class to know how long a day
 //  is, when it's done, etc..  and then will handle whatever happens at the end of a day.
 class DayScene {
+	#baseDepth;
+	#parentWindow;
 
+	#element;
+	#fader;
+	#day;
+
+	#active;
+
+	constructor(in_parent_window) {
+		this.#baseDepth = 8;
+		this.#parentWindow = in_parent_window;
+		this.#active = false;
+		this.#fader = new SceneFader(SceneFader.FADE_BLACK, 0.8, 1.2);
+		this.#fader.specificSize = new Size(in_parent_window.windowElement.clientWidth, in_parent_window.windowElement.clientHeight);
+
+		this.#element = document.createElement("div");
+		this.#element.style.zIndex = this.#baseDepth;
+		this.#element.classList.add("sceneLayer");
+		this.#element.style.width = in_parent_window.windowElement.clientWidth + "px";
+		this.#element.style.height = in_parent_window.windowElement.clientHeight + "px";
+
+		//how much time are we putting in a day??
+		this.#day = new Day(TIME_IN_DAY_MINUTES);
+		//soo... the day has its own update...  do I create the day here??  Do I register it with Game??
+		//  Do I handle everything the Day is doing?  Probably..
+		Game.Instance().addObject(this.#day);
+		//also add us to the game!
+		Game.Instance().addObject(this);
+
+		this.addStaticObject(this.#fader);
+	}
+
+	addStaticObject(in_game_object) {
+		//this.#staticGameObjects.push(in_game_object);
+		//give it the right scale, and we should be good...
+		//in_game_object.sizeScale = this.#parentWindow.windowScale;
+		//no scaling or changing of location for scene loc
+		in_game_object.sceneLocation = new Location(in_game_object.location.x, in_game_object.location.y, in_game_object.location.z);
+		this.#element.appendChild(in_game_object.element);
+	}
+
+	//We have an update...  umm.. is it earlyUpdate??  If we hit end of day, then bam, end of day before 
+	//  all them updates??  That or let it flag the next loop. It doesn't really matter.
+	//Stuff happens, yada yada.  Then in lateUpdate, this guy ups the day time.  I kinda dig it...??
+	//We start with lateUpdate, and maybe I'll change it later.
+	lateUpdate() {
+		//if our day is end of day, let the game know!
+		if (this.#day.dayEnded && !this.#active) {
+			this.#active = true;
+			//we need to pause!  Add ourself to the DOM and hit the fader.
+			this.#parentWindow.windowElement.appendChild(this.#element);
+			this.#fader.fadeIn(() => {this.fadeDayEnd()});
+
+			//let's create a timeout to call newDay, for testing..
+			setTimeout(() => {this.newDay()}, 10000);
+		}
+	}
+
+	//this'll get called from a button that we crate and put in the end day overlay.
+	newDay() {
+		//reset our day!
+		this.#day.newDay();
+		this.#active = false;
+
+		//tell the game it's a new day..?
+		Game.Instance().startNewDay();
+
+		//kick off whatever has the night sky flip in a 180 circle to come back to day sky.
+
+		//and we want to fade back out!  Do I want to do this one faster than the fade in?
+		this.#fader.fadeOut(() => {this.fadeDayNew()}, 0.5);
+	}
+
+	fadeDayEnd() {
+		//I like the idea of calling Game with dayEnded AFTER we've finished fading.
+		Game.Instance().dayEnded();
+
+		//umm.  no we add the other stuff to the DOM, talking about the day, stuff they can do,
+		//  etc etc..  maybe a "Next Day" button??
+
+		//also kick off however I'm going to have the day sky turn to night with moon..
+
+		//also have the % chance that they get to play a night time...  (some low % chance)
+		//  maybe it'll be a dream??  Something cute and silly, or a scary dream..
+		//  counting sheep?
+		//  lots of bees chasing cow?
+		//  moths flying here and there..
+	}
+	fadeDayNew() {
+		//remove ourself from the dom!
+		this.#parentWindow.windowElement.removeChild(this.#element);
+	}
 }
 
 //---===---===---===---===---
@@ -3469,6 +3620,7 @@ function imagesLoaded() {
 
 	let tmp_pause_scene = new PauseScene(gameWindow);
 	//aand we don't need to do anything else with PauseScene!
+	let tmp_day_scene = new DayScene(gameWindow);
 
 	let tmp_sky_scene = skyLayerBuild(gameWindow);
 	let tmp_hill_scene = hillLayerBuild(gameWindow);
