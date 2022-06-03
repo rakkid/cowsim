@@ -16,7 +16,13 @@
 //  mooLocation is 8, 10.  That means we want that center-ish (wherever I have the moo.. maybe a bit lower than center)
 //  I moove the moo to 7, 10.  The world now needs to moove right.  OK.
 
-//
+//supposedly I can't reference classes that are created below where I'm using them??
+//OK, I looked it up.  It's called hoisting.  class declarations are hoisted.  But if you try to use a class
+//  before the class is hit in the file, then you'll get a reference error.
+//Since allllll of this code is classes, and nothing really runs until after all classes are hit, then we
+//  don't actually have a problem.  Snazzywazzy.
+//  https://developer.mozilla.org/en-US/docs/Glossary/Hoisting
+
 
 const IMG_TYPE = "png";
 const HILL_OPTIONS = 4;
@@ -121,6 +127,7 @@ class Game {
 
   #counter = 0;
   #totalTimeElapsed = 0;
+  #gameTimeElapsed = 0;
   #lastFrameTimes = [];
 
   #elementTimeUpdate = null;
@@ -196,10 +203,13 @@ class Game {
     //SO... IF WE ARE PAUSED....  WHAT DO WE DO??  We skip running stuff..
     if (this.#paused) {
       //just call the timeout and return.  at least for the moment...
+
       this.#gameLoopRepeat();
       return;
     }
 
+    //update gameTimeElapsed..
+    this.#gameTimeElapsed += this.#gameTimer.timeElapsed;
     this.#counter++;
 
     //if (this.#elementTimeUpdate === null) {
@@ -255,7 +265,7 @@ class Game {
     //look at last frames and adjust...
     const tmp_remaining_time = this.#targetFrameTime - (Date.now() - this.#gameTimer.lastTime) - tmp_late;
     //this.#elementTimeUpdate.innerText = this.#counter + " time to sleep: " + tmp_remaining_time + ", target: " + this.#targetFrameTime;
-    document.getElementById("elapsedTime").innerText = this.#totalTimeElapsed;
+    document.getElementById("elapsedTime").innerText = "game time: " + this.#gameTimeElapsed + " | total time: " + this.#totalTimeElapsed;
 
     if (this.#counter < SECONDS_TO_RUN * FPS_FPS) {
       setTimeout(() => { this.gameLoop() }, tmp_remaining_time > 0 ? tmp_remaining_time : 0);
