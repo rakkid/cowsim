@@ -2633,9 +2633,9 @@ class SceneFader extends GameObject {
 
     //keep calling ourself until fully faded, then call the callback to let it know!
     this.#timer.update();
-    console.log("elapsed: " + this.#timer.timeElapsed + ", speed: " + in_speed_millis + ", maxFade: " + this.#maxFade);
+    //console.log("elapsed: " + this.#timer.timeElapsed + ", speed: " + in_speed_millis + ", maxFade: " + this.#maxFade);
     this.#currentFade += (this.#timer.timeElapsed / in_speed_millis) * this.#maxFade;
-    console.log("Fade IN! " + this.#currentFade);
+    //console.log("Fade IN! " + this.#currentFade);
     if (this.#currentFade >= this.#maxFade) {
       //we are done!
       this.#currentFade = this.#maxFade;
@@ -2689,9 +2689,9 @@ class SceneFader extends GameObject {
 
     //keep calling ourself until fully faded, then call the callback to let it know!
     this.#timer.update();
-    console.log("elapsed: " + this.#timer.timeElapsed + ", speed: " + in_speed_millis + ", maxFade: " + this.#maxFade);
+    //console.log("elapsed: " + this.#timer.timeElapsed + ", speed: " + in_speed_millis + ", maxFade: " + this.#maxFade);
     this.#currentFade -= (this.#timer.timeElapsed / in_speed_millis) * this.#maxFade;
-    console.log("Fade OUT! " + this.#currentFade);
+    //console.log("Fade OUT! " + this.#currentFade);
     if (this.#currentFade <= 0) {
       //we are done!
       this.#currentFade = 0;
@@ -2709,6 +2709,11 @@ class SceneFader extends GameObject {
 
       setTimeout(() => { this.#fadeOutInternal(in_callback, in_speed_millis) }, this.#frameTime);
     }
+  }
+
+  //the speeeed.  The default is 60, I guess...
+  set framesPerSecond(in_value) {
+    this.#frameTime = 1000 / in_value;
   }
 }
 
@@ -2912,7 +2917,8 @@ class PauseScene {
     this.#baseDepth = 9;
     this.#parentWindow = in_parent_window;
     this.#active = false;
-    this.#fader = new SceneFader(SceneFader.FADE_BLACK, 0.5, 4);
+    this.#fader = new SceneFader(SceneFader.FADE_BLACK, 0.5, .1);
+    this.#fader.framesPerSecond = 120;
     this.#fader.specificSize = new Size(in_parent_window.windowElement.clientWidth, in_parent_window.windowElement.clientHeight);
 
     this.#element = document.createElement("div");
@@ -2972,11 +2978,9 @@ class PauseScene {
     //if we're paused, do we add the other PAUSE overlay stuff?
     if (this.#active) {
       //umm..  add othre stuff?
-      console.log("FADE IN COMPLETED!!");
     }
     else {
       //remove ourself from the dom!
-      console.log("FADE -out- COMPLETED!!");
       this.#parentWindow.windowElement.removeChild(this.#element);
     }
   }
