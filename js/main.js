@@ -2993,21 +2993,21 @@ class Grass extends GameObject {
 			let tmp_rand = Math.floor(Math.random() * GRASS_M_OPTIONS[this.#bladeCount-1]) + 1;
 			this.#name = Grass.grassNameBuilder(GRASS_M_NAME, this.#bladeCount, tmp_rand);
 			let tmp_file_name = this.#name + "." + IMG_TYPE;
-			this.setImage(tmp_file_name, FileLoader.Instance().getFile(tmp_file_name));
+			this.updateImage(tmp_file_name, FileLoader.Instance().getFile(tmp_file_name));
 		}
 		else if (this.#age === 10) {
 			//we are growing to large!!
 			let tmp_rand = Math.floor(Math.random() * GRASS_L_OPTIONS[this.#bladeCount-1]) + 1;
 			this.#name = Grass.grassNameBuilder(GRASS_L_NAME, this.#bladeCount, tmp_rand);
 			let tmp_file_name = this.#name + "." + IMG_TYPE;
-			this.setImage(tmp_file_name, FileLoader.Instance().getFile(tmp_file_name));
+			this.updateImage(tmp_file_name, FileLoader.Instance().getFile(tmp_file_name));
 		}
 		else if (this.#age === 18) {
 			//we have turned to haaaaayyyyy!
 			//this one is easy....  take our large name, and add _d to it.
 			this.#name = this.#name + "_d";
 			let tmp_file_name = this.#name + "." + IMG_TYPE;
-			this.setImage(tmp_file_name, FileLoader.Instance().getFile(tmp_file_name));
+			this.updateImage(tmp_file_name, FileLoader.Instance().getFile(tmp_file_name));
 		}
 	}
 
