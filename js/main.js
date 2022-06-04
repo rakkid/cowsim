@@ -29,10 +29,12 @@ const IMG_TYPE = "png";
 const HILL_OPTIONS = 4;
 const HILL_COLORS = ["g"];
 const HILL_NAME = "assets/hill/hill_"
-const GRASS_S_OPTIONS = 5;
-const GRASS_S_NAME = "assets/grass/grass_s_";
-const GRASS_L_OPTIONS = 4;
-const GRASS_L_NAME = "assets/grass/grass_l_";
+const GRASS_S_NAME = "assets/grass/grass_s";
+const GRASS_S_OPTIONS = [7, 10, 6];  //how many at each blade-of-grass amounts.. +1 index for # blades
+const GRASS_M_NAME = "assets/grass/grass_m";
+const GRASS_M_OPTIONS = [8, 8, 7];
+const GRASS_L_NAME = "assets/grass/grass_l";
+const GRASS_L_OPTIONS = [8, 8, 8];
 const FLOWER_OPTIONS = 4;
 const TREE_OPTIONS = 4;
 const GROUND_EFFECTS_OPTIONS = 4;
@@ -233,7 +235,7 @@ class Game {
 				this.#currentDay += 1;
 
 				//call anything with updateDayNew()!
-				this.#runUpdateDayNew.forEach(vv_object => vv_object.updateDayEnd());
+				this.#runUpdateDayNew.forEach(vv_object => vv_object.updateDayNew());
 
 				//do I call the loop, or do we go straight into update??
 			}
@@ -1213,6 +1215,32 @@ class GameObject {
 		this.#element.style.width = this.#size.width + "px";
 		this.#element.style.height = this.#size.height + "px";
 	}
+	//what a fucking mess...
+	#reapplySizeScale() {
+		//We are assuming that all they've really done is update the image and the iamge's size changed..
+		//  we're using the already-stored specific size or size scale to do this!
+		if (this.#specificSize != null) {
+			//this.#size = new Size(this.#sizeScale * this.#specificSize.width, this.#sizeScale * this.#specificSize.height);
+			//for specific size, we don't need to do anything.  it should already be the right size!
+			return;
+		}
+		else {
+			this.#size = new Size(this.#sizeScale * this.#naturalSize.width, this.#sizeScale * this.#naturalSize.height);
+		}
+		//TODO:  ALTERNATELY, I can create a new Size in the constructor, and just update the size here..
+		//  then I'm not creating lots of new Size objects...  buuut, I dunno.  Defeats the purpose of
+		//  accidently messing up the size object?  It does'nt really matter....
+
+		//also create our x and y offsets to get to BOTTOM LEFT of this image!
+		this.#calcOffset();
+
+		//TODO:  Have different rendered images based on size... if our size goes below a threshold, swap
+		//  images to the smaller (or larger) size?
+
+		//also update our object??
+		this.#element.style.width = this.#size.width + "px";
+		this.#element.style.height = this.#size.height + "px";
+	}
 	//this can set the image with a specific width/height.
 	set specificSize(in_value) {
 		if (this.#element == null) {
@@ -1250,6 +1278,19 @@ class GameObject {
 		//aaand set default size scale.
 		this.sizeScale = 1;
 
+	}
+	//this is where we are changing the image tied to this game object!
+	updateImage(in_value, in_loaded) {
+		this.#img = in_value;
+		let tmp_old_size = this.#naturalSize;
+		this.#naturalSize = new Size(in_loaded.naturalWidth, in_loaded.naturalHeight);
+		//update the image's source..
+		this.#element.src = in_loaded.src;
+		//and now we need to reapply scaling if the image's size changed!
+		if (this.#naturalSize.width !== tmp_old_size.width || this.#naturalSize.height !== tmp_old_size.heigth) {
+			//reapply scaling!
+			this.#reapplySizeScale();
+		}
 	}
 	set baseAnimation(in_value) {
 		if (! in_value instanceof Animation) {
@@ -2886,6 +2927,8 @@ class ControllableCow extends GameObject {
 //  should I have a medium size??
 class Grass extends GameObject {
 	#age;
+	#name;
+	#bladeCount;
 
 	constructor(in_location, in_age) {
 		super();
@@ -2899,22 +2942,73 @@ class Grass extends GameObject {
 		this.locationPoint = GameObject.LOC_BC;
 		this.visualOffset = new Location(0, -1, 0);
 		//we need a new grass img for this guy.
-		let tmp_rand = 1;
+		let tmp_rand;
+		this.#bladeCount = Math.floor(Math.random() * 3) + 1;  //1 to 3 blades...;
 		let tmp_file_name;
 		if (this.#age < 5) {
-			tmp_rand = Math.floor(Math.random() * GRASS_S_OPTIONS) + 1;
-			tmp_file_name = GRASS_S_NAME + (tmp_rand < 10? "0" : "") + tmp_rand + "." + IMG_TYPE;
+			tmp_rand = Math.floor(Math.random() * GRASS_S_OPTIONS[this.#bladeCount-1]) + 1;
+			this.#name = Grass.grassNameBuilder(GRASS_S_NAME, this.#bladeCount, tmp_rand);
+			tmp_file_name = this.#name + "." + IMG_TYPE;
 		}
-		else if (this.#age < 15) {
-			tmp_rand = Math.floor(Math.random() * GRASS_L_OPTIONS) + 1;
-			tmp_file_name = GRASS_L_NAME + (tmp_rand < 10? "0" : "") + tmp_rand + "." + IMG_TYPE;
+		else if (this.#age < 10) {
+			tmp_rand = Math.floor(Math.random() * GRASS_M_OPTIONS[this.#bladeCount-1]) + 1;
+			this.#name = Grass.grassNameBuilder(GRASS_M_NAME, this.#bladeCount, tmp_rand);
+			tmp_file_name = this.#name + "." + IMG_TYPE;
+		}
+		else if (this.#age < 18) {
+			tmp_rand = Math.floor(Math.random() * GRASS_L_OPTIONS[this.#bladeCount-1]) + 1;
+			this.#name = Grass.grassNameBuilder(GRASS_L_NAME, this.#bladeCount, tmp_rand);
+			tmp_file_name = this.#name + "." + IMG_TYPE;
 		}
 		else {
-			tmp_rand = Math.floor(Math.random() * GRASS_L_OPTIONS) + 1;
-			tmp_file_name = GRASS_L_NAME + (tmp_rand < 10? "0" : "") + tmp_rand + "." + IMG_TYPE;
+			tmp_rand = Math.floor(Math.random() * GRASS_L_OPTIONS[this.#bladeCount-1]) + 1;
+			this.#name = Grass.grassNameBuilder(GRASS_L_NAME, this.#bladeCount, tmp_rand) + "_d";
+			tmp_file_name = this.#name + "." + IMG_TYPE;
 		}
 
 		this.setImage(tmp_file_name, FileLoader.Instance().getFile(tmp_file_name));
+	}
+
+	//do I want small pieces of grass to die?  Or just big pieces?  We'll start with just big ones.. meaning
+	//  it's an age/size thing.  (rather than dead/color for all age/sizes)
+	static grassNameBuilder(in_file_name_start, in_blade_count, in_choice) {
+		return in_file_name_start + in_blade_count + "_" + (in_choice < 10? "0" : "") + in_choice;
+	}
+
+	updateDayNew() {
+		//increment our age!
+		this.#age++;
+
+		//do we need to die??
+		if (this.#age > 24) {
+			//we deeead!
+			//TODO Delete / disable..
+		}
+
+		//do we need to grow??
+		//Do I have a % chance where when it grows, it loses a blade of grass?  Meh... I gotta do more with this
+		//  thing than just make stupid grass.
+		if (this.#age === 5) {
+			//we are growing to meeediuM!
+			let tmp_rand = Math.floor(Math.random() * GRASS_M_OPTIONS[this.#bladeCount-1]) + 1;
+			this.#name = Grass.grassNameBuilder(GRASS_M_NAME, this.#bladeCount, tmp_rand);
+			let tmp_file_name = this.#name + "." + IMG_TYPE;
+			this.setImage(tmp_file_name, FileLoader.Instance().getFile(tmp_file_name));
+		}
+		else if (this.#age === 10) {
+			//we are growing to large!!
+			let tmp_rand = Math.floor(Math.random() * GRASS_L_OPTIONS[this.#bladeCount-1]) + 1;
+			this.#name = Grass.grassNameBuilder(GRASS_L_NAME, this.#bladeCount, tmp_rand);
+			let tmp_file_name = this.#name + "." + IMG_TYPE;
+			this.setImage(tmp_file_name, FileLoader.Instance().getFile(tmp_file_name));
+		}
+		else if (this.#age === 18) {
+			//we have turned to haaaaayyyyy!
+			//this one is easy....  take our large name, and add _d to it.
+			this.#name = this.#name + "_d";
+			let tmp_file_name = this.#name + "." + IMG_TYPE;
+			this.setImage(tmp_file_name, FileLoader.Instance().getFile(tmp_file_name));
+		}
 	}
 
 
@@ -3263,13 +3357,29 @@ function pastureLayerPreBuild() {
 	pastureList.push("assets/pasture.png");
 	pastureList.push("assets/frontpasture_top_edge.png");
 
+	//1 for each blade count amount..
+	for (let j=0; j<3; j++) {
+		for (let i=1; i <= GRASS_S_OPTIONS[j]; i++) {
+			pastureList.push(Grass.grassNameBuilder(GRASS_S_NAME, j+1, i) + "." + IMG_TYPE);
+		}
+		for (let i=1; i <= GRASS_M_OPTIONS[j]; i++) {
+			pastureList.push(Grass.grassNameBuilder(GRASS_M_NAME, j+1, i) + "." + IMG_TYPE);
+		}
+		for (let i=1; i <= GRASS_L_OPTIONS[j]; i++) {
+			pastureList.push(Grass.grassNameBuilder(GRASS_L_NAME, j+1, i) + "." + IMG_TYPE);
+			pastureList.push(Grass.grassNameBuilder(GRASS_L_NAME, j+1, i) + "_d." + IMG_TYPE);
+		}
+	}
+
+/*
 	for (let i=1; i <= GRASS_S_OPTIONS; i++) {
 		pastureList.push(GRASS_S_NAME + (i < 10 ? "0" : "") + i + "." + IMG_TYPE);
 	}
+
 	for (let i=1; i <= GRASS_L_OPTIONS; i++) {
 		pastureList.push(GRASS_L_NAME + (i < 10 ? "0" : "") + i + "." + IMG_TYPE);
 	}
-
+*/
 	//OMG!!  ADD THE COW DUH!!!!
 	pastureList.push("assets/cow.png");
 }
@@ -3449,7 +3559,8 @@ function pastureLayerBuild(in_window) {
 */
 
 
-	let tmp_boundary = new Boundary(0, 100, 20, -120);
+	let tmp_boundary = new Boundary(20, 50, 0, -50);
+	//let tmp_boundary = new Boundary(0, 100, 20, -120);
 	let tmp_grass = Grass.factory(tmp_boundary, 10, 120, -1);
 	tmp_grass.forEach(vv_object => {
 		tmp_layer.addObject(vv_object);
