@@ -1604,15 +1604,6 @@ class SceneScaler {
 		this.#horizonHeightDifferenceHorizonToRear = this.#horizonHeightRear - this.#horizonHeightAtHorizon;
 	}
 
-	//this calcs scale at a specific distance..  Really I just use it for getting rear distance in the constructor
-	//  in calcScenePosition, I am using already-calc'd values, to minimize calculations.  Messy but don't care!
-	calcScaleAtDistance(in_distance) {
-		//Soo, pretty much we figure out the z ratio from front (or start scaling) to rear.
-		//  Then get our horizontal distance at front (or start scaling.. which is the same as front..) and rear.
-		//  Then multiply by ratio.  and multiply by startScale.  And we should be good!
-		let tmp_
-	}
-
 	//Here we are, folks!!  take in the center point of the scene and a location, and it converts that
 	//  location into a scene location/position!
 	calcScenePosition(in_loc, in_center) {
@@ -1640,16 +1631,27 @@ class SceneScaler {
 		//first let's do Z.  this is the ratio, front to back where the location is!
 		//NOTE: #zDistance is NEGATIVE.  But in_loc_z is always smaller than zLocationFront, so we'll get
 		//  a negative number there, too...  neg divided neg equals postive.  which we want.  So we are GOOD!
+		console.log("object loc: " + in_loc.x + ", " + in_loc.y + ", " + in_loc.z);
+		console.log("z loc front: " + this.#zLocationFront + ", z loc rear: " + this.#zLocationRear + ", zdist: " + this.#zDistance);
+		console.log("front loc: " + (in_center.z + this.#zLocationFront) + ", rear loc: " + (in_center.z + this.#zLocationRear));
 		this.#tmp_ratio = (in_loc.z - (in_center.z + this.#zLocationFront)) / this.#zDistance;
-		//console.log("zratio " + this.#tmp_ratio);
+		console.log("z ratio (how close to front) " + this.#tmp_ratio);
+		console.log("h dist at front: " + this.#hDistanceFront + ", h dist at rear: " + this.#hDistanceRear + ", dif: " + this.#hDifference);
 
 		//Here's our X / horizontal location
 		//now we can get the horizontal distance at that z depth..
+		//NOTE:  This doesn't consider where hDistanceWhereBeginScaling is!  TODO FIX THIS BUGGY BUG
 		this.#tmp_dist = this.#tmp_ratio * this.#hDifference + this.#hDistanceFront;
+		console.log("horizontal distance at ratio point: " + this.#tmp_dist);
 		//now we determine where on the screen their location is..
 		this.#tmp_edge = in_center.x - (this.#tmp_dist * 0.5);
+		console.log("edge loc at distance: " + this.#tmp_edge + ", (center.x is: " + in_center.x + ")");
 		//now we can get the ratio across that distance we're at, and multiply it by our scene size!
 		tmp_x = ((in_loc.x - this.#tmp_edge) / this.#tmp_dist) * this.#sceneSize.width;
+		//this ratio is fuckin' wrong.
+		let tmp_ratio_across = ((in_loc.x - this.#tmp_edge) / this.#tmp_dist);
+		console.log("ratio across: " + tmp_ratio_across);
+		console.log("calc'd x is: " + tmp_x);
 
 		//Here's our Z...  umm... everything in front of the horizon distance is positive.  everything behind it is
 		//  negative.  Well... we can just make it really simple.  All Z needs us to do is place in front of or 
@@ -1692,13 +1694,14 @@ class SceneScaler {
 		//OH shit, I forgot I need to do this for front or back of the horizon!!)
 		//we do front first, because that's what I calculated first.
 		//if ((in_loc.z - in_center.z) >= this.zLocationHorizon) {
+		let tmp_loc_ratio_2 = 0;
 		if (tmp_z >= 0) {
-			//console.log("IN FRONT OF HORIZON");
-			//console.log("in z: " + in_loc.z + ", zFront: " + this.#zLocationFront + ", ftoH: " + this.#zDistanceFrontToH);
+			console.log("IN FRONT OF HORIZON");
+			console.log("in z: " + in_loc.z + ", zFront: " + this.#zLocationFront + ", ftoH: " + this.#zDistanceFrontToH);
 			//we need to get the vertical distance at this z depth.
 			//get this guy FIRST, because tmp_ratio is already set front to back!
 			this.#tmp_dist = (this.#tmp_ratio * this.#vDifference) + this.#vDistanceFront;
-			//console.log("vertical view height at depth " + this.#tmp_dist);
+			console.log("vertical view height at depth " + this.#tmp_dist + ", vDiff: " + this.#vDifference + ", vDist at front: " + this.#vDistanceFront);
 			if (this.#zDistanceFrontToH > this.#zDistance) {
 				//console.log("calc to horizon!");
 			//console.log("in z: " + in_loc.z + ", zFront: " + this.#zLocationFront + ", ftoH: " + this.#zDistanceFrontToH + ", ftoR: " + this.#zDistance);
@@ -1713,24 +1716,47 @@ class SceneScaler {
 				//console.log("hz height " + this.#tmp_bottom_height_from_horizon);
 			}
 			else {
-				//console.log("calc to rear!");
+				console.log("calc to rear!");
 			//console.log("in z: " + in_loc.z + ", zFront: " + this.#zLocationFront + ", ftoH: " + this.#zDistanceFrontToH + ", ftoR: " + this.#zDistance);
 			//console.log("vertical view height at depth " + this.#tmp_dist);
 				//calc to rear.  We won't be rising as much!
 				//now we overwrite tmp_ratio to get ratio from front to REAR
-				this.#tmp_ratio = (in_loc.z - (in_center.z + this.#zLocationFront)) / this.#zDistance;
+				//OH.. this is already the ratio......
+				//this.#tmp_ratio = (in_loc.z - (in_center.z + this.#zLocationFront)) / this.#zDistance;
 				//this.#tmp_ratio = (in_loc.z - this.#zLocationFront) / this.#zDistance;
 				//console.log("z ratio " + this.#tmp_ratio);
 				//console.log("hz height dif FtoR " + this.#horizonHeightDifferenceFrontToRear);
 				//console.log("hzHeightFront " + this.#horizonHeightFront);
+				//OK... I need to incorporate the Y distance into this some how...  as we get farther into the distance, Y space
+				//  shrinks!
+				//  horizon height at front:  100
+				//                    rear:   200
+				//  vertical front:  25 x .75  = 18 ish..
+				//  vertical rear:   100x .75  = 75
+				//  100 / 900 (screen height) = 1/9
+				//  300 / 900                 = 1/3
+				//  200 / 900                 = 2/9 height difference...
+				//  front:  zero is at 1/9..  (1-1/9) * 18 = 16 in (8/9)*screenheight.  800/16 = 50
+				//  rear:   zero is at 1/3..  (1-1/3) * 75 = 50 in (2/3)*screenheight.  600/50 = 12
+				let tmp_front_ratio = this.#sceneSize.height / this.#vDistanceFront;
+				let tmp_loc_ratio = this.#sceneSize.height / this.#tmp_dist;
+				let tmp_rear_ratio = this.#sceneSize.height / this.#vDistanceRear;
+				console.log("v_pixels_per_dist front: " + tmp_front_ratio + ", rear: " + tmp_rear_ratio);
+				//50 -> 12    (50-12)*(1-zratio) + 12
+				tmp_loc_ratio_2 = (tmp_front_ratio - tmp_rear_ratio) * (1 - this.#tmp_ratio) + tmp_rear_ratio;
+				console.log("v_pixels_per_dist: " + tmp_loc_ratio + ", -or- " + tmp_loc_ratio_2);
+				//  oh yea.  vertical distance at depth..  18..  900/18 = 50.  50 height per in game y location.
+				//  horizon height ratio difference...????  50 front.  12 back.  50/12 = 4.16 ...  12/50 = .24
+				//  the tmp_ratio is really ...  (1 - (1/3-1/9) * tmp_z_ratio + 1/9) * verticalHeight.
 				this.#tmp_bottom_height_from_horizon = (this.#tmp_ratio * this.#horizonHeightDifferenceFrontToRear) + this.#horizonHeightFront;
-				//console.log("hz height " + this.#tmp_bottom_height_from_horizon);
+				console.log("hz height " + this.#tmp_bottom_height_from_horizon);
 
 			}
 			//now we can get the ratio how high up we are from the bottom and multiply by scene height!
 			//tmp_y = ((in_loc.y + this.#tmp_bottom_height_from_horizon) / this.#tmp_dist) * this.#sceneSize.height;
 			tmp_y = (in_loc.y / this.#tmp_dist) * this.#sceneSize.height + this.#tmp_bottom_height_from_horizon;
-			//console.log("y loc " + tmp_y);
+			//tmp_y = (in_loc.y * tmp_loc_ratio_2) + this.#tmp_bottom_height_from_horizon;
+			console.log("y loc " + tmp_y);
 		}
 		else {
 			//console.log("BEHIND HORIZON");
@@ -1760,7 +1786,491 @@ class SceneScaler {
 			//tmp_y = ((in_loc.y + this.#tmp_bottom_height_from_horizon) / this.#tmp_dist) * this.#sceneSize.height;
 			tmp_y = (in_loc.y / this.#tmp_dist) * this.#sceneSize.height + this.#tmp_bottom_height_from_horizon;
 		}
+		//tmp_y = 50;
 
+		//console.log("scenLocation: " + tmp_x + ", " + tmp_y + ", " + tmp_z);    
+
+		//OK.. our horizontal position..  We need to know how close we are to the front vs the back.  Use that ratio
+		//  to calc the horizontal left-right ratio at that distance.
+		return [this.#tmp_scale, new Location(tmp_x, tmp_y, tmp_z)];
+		//return [1, new Location(tmp_x, tmp_y, tmp_z)];
+	}
+
+	//compare compare...  takes in another sceneScaler and compares which one's front edge is closest to the 
+	//  camera.  if this one is closer, return -1.  if other is closer return 1.  if they the same return zero.
+	//  if this isn't even a SceneScaler???  fail?
+	compareScaler(in_scaler) {
+		if (! in_scaler instanceof SceneScaler) {
+			throw "Cannot compare non SceneScaler to a SceneScaler!";
+		}
+		//call the other guy with our number... it returns telling us if we're closer (it'll send a -1);
+		return in_scaler.compareZDistance(this.#zLocationFront);
+	}
+	//another SceneScaler is comparing itself to us!  If THEY are closer, give them -1!
+	//  if we are the same, give them 0.
+	//  if we are closer, give them 1.
+	compareZDistance(in_distance) {
+		if (in_distance < this.#zLocationFront) {
+			return -1;
+		}
+		else if (in_distance == this.#zLocationFront) {
+			return 0;
+		}
+		else {
+			return 1;
+		}
+	}
+
+	//this checks against the BACK EDGE only!  It does'nt care if the incoming z-position is 
+	//  before the front edge..  (since scene scalers are stored front to back)
+	//zLocationRear is NEGATIVE??  shit.
+	//  zPosition: -90.  cameraZ is -80.  zLocationRear is -40.
+	//  -90 >= -80 + -40 = -90 >= -120.  Yes.
+	zInRange(in_z_position, in_camera_z) {
+		if (in_z_position >= in_camera_z + this.#zLocationRear) {
+			return true;
+		}
+		return false;
+	}
+
+	//this takes in the distance to horizon, the height of horizon, the height at zero, and a distance
+	//  in between.  It returns the height at that distance!
+	static calcHorizonHeight(in_horizon_distance, in_horizon_height, in_zero_height, in_calc_height_at_distance) {
+		//first get our ratio from front to back, that we need to calc at.
+		//far distance is -60.  our distance is -40.  40/60 = .67    ..  then .67 * (horizon_height - zero_height)
+		//WHAT IF horizon is lower than zero??  (for when we are calc'ing beyond-horizon numbers)
+		//  umm...  60..  0.   .66  becomes 20..
+		let tmp_ratio = in_calc_height_at_distance / in_horizon_distance;
+		let tmp_result = tmp_ratio * (in_horizon_height - in_zero_height) + in_zero_height;
+		//if tmp_result is negative..  for example, -40, this still works..  we'd get -40 + 60 = -20. yup!
+		return tmp_result;
+	}
+
+	//accessors....  the ones that are exposed are mostly used for building SceneScalers that are in front of
+	//  or behind..  Liiike, if I create a scene out of a few different scalers...  as we get closer to the 
+	//  camera, I want to scale differently than far back.
+	get hDistanceRear() {
+		return this.#hDistanceRear;
+	}
+	get vDistanceRear() {
+		return this.#vDistanceRear;
+	}
+	get horizonHeightRear() {
+		return this.#horizonHeightRear;
+	}
+	get horizonHeightAtHorizon() {
+		return this.#horizonHeightAtHorizon;
+	}
+	get zDistanceFromCameraRear() {
+		return this.#zLocationRear;
+	}
+	get zDistanceFromCameraHorizon() {
+		return this.#zLocationHorizon;
+	}
+	get scaleSizeAtRear() {
+		return this.#scaleSizeAtRear;
+	}
+
+}
+
+//OK, I guess I give up for the moment..  I wanted to have an arbitrarily defineable scene, but I don't like
+//  the weird ass scaling, so I'm definiteyl doing something wrong...  I'm gotta go ahead and make a boring 
+//  normal one using trig.  I guess I can have horizontal and vertical be their own separate scales?  Maybe 
+//  that's all I was really envisioning anyway..??  Buuuut....  soemhow I still need to scale my objects right..
+//  Fuck fuck duck!!
+class SceneScalerTrig {
+	#hDistanceFront;
+	#hDistanceRear;
+	#vDistanceFront;
+	#vDistanceRear;
+	#horizonHeightFront;
+	#horizonHeightRear;
+	#horizonHeightAtHorizon;
+
+	#scaleSizeAtFront;
+	#scaleSizeAtRear;
+
+	#zLocationFront;
+	#zLocationRear;
+	#zLocationHorizon;
+
+	#zDistance;
+	#zDistanceFrontToH;
+	#zDistanceHToRear;
+	#hDifference;
+	#vDifference;
+	#vDistanceHorizon;
+	#horizonHeightDifferenceFrontToRear
+	#horizonHeightDifferenceFrontToHorizon;
+	#horizonHeightDifferenceHorizonToRear;
+	#zDistanceToBeginSizeScaling;
+	#hDistanceWhereBeginScaling;
+	#zScalingDifference;
+	#zScalingRatio;
+
+	//the view window
+	#sceneSize;
+
+	//I need a clipping window..  anything outside this area can be ignored
+	#clippingDistance;
+
+	//let's save and reuse our temporary variables..
+	#tmp_ratio;
+	#tmp_dist;
+	#tmp_edge;
+	#tmp_scale;
+	//this guy I can reuse tmp_edge for, but ehh... I want it a bit more descriptive.  
+	//  not that this is at all coherent...
+	#tmp_bottom_height_from_horizon;
+	#tmp_horizon_height_from_bottom;
+
+	#hFieldOfViewHalf;
+	#vFieldOfViewHalf;
+	#hTan;
+	#vTan;
+	#hTrueCameraDist;
+	#vTrueCameraDist;
+	#hTrueCameraOffset;
+	#vTrueCameraOffset;
+
+	#horizonFieldOfViewHalf;
+	#horizonTan;
+	#horizonTrueCameraDist;
+	#horizonTrueCameraOffset;
+
+
+	constructor(in_horizontal_distance_front, 
+				in_vertical_distance_front, 
+				in_horizontal_distance_rear, 
+				in_vertical_distance_rear, 
+				in_z_distance_from_camera_front,
+				in_z_distance_from_camera_rear, 
+				in_z_distance_from_camera_horizon, 
+				in_horizon_height_front, 
+				in_horizon_height_rear, 
+				in_horizon_height_at_horizon, 
+				in_z_distance_begin_scaling,
+				in_scene_size, 
+				in_clipping_distances,
+				in_start_scale_size) {
+		this.#hDistanceFront = in_horizontal_distance_front;
+		this.#hDistanceRear = in_horizontal_distance_rear;
+		this.#vDistanceFront = in_vertical_distance_front;
+		this.#vDistanceRear = in_vertical_distance_rear;
+		//OK, these are more like our clipping / sorting for which scaler...
+		this.#zLocationFront = in_z_distance_from_camera_front;
+		this.#zLocationRear = in_z_distance_from_camera_rear;
+		this.#zLocationHorizon = in_z_distance_from_camera_horizon;
+		this.#horizonHeightFront = in_horizon_height_front;
+		this.#horizonHeightRear = in_horizon_height_rear;
+		this.#scaleSizeAtFront = in_start_scale_size;
+
+		//umm... I think this one needs to be calc'd for height of game-location numbers??
+		//if this comes in as 300.  we know window height is 900.  so .33.  so we calc
+		//  game height at horizon location, and multiply by .33??  that's horizon height.
+		//we already have it below..  this.#vDistanceHorizon
+		//this.#horizonHeightAtHorizon = in_horizon_height_at_horizon;
+		this.#zDistanceToBeginSizeScaling = in_z_distance_begin_scaling;
+		this.#sceneSize = in_scene_size;
+		this.#clippingDistance = in_clipping_distances;
+		//console.log("hzHeight: " + in_horizon_height_at_horizon);
+
+		//working with our z-distance as negative, let's say rear is -110, front is -40.
+		//  -110 - -40 = -70 distance.  Keep it negative??  We'll see..
+		this.#zDistance = this.#zLocationRear - this.#zLocationFront;
+		this.#zDistanceFrontToH = this.#zLocationHorizon - this.#zLocationFront;
+		this.#zDistanceHToRear = this.#zLocationRear - this.#zLocationHorizon;
+		this.#hDifference = this.#hDistanceRear - this.#hDistanceFront;
+		this.#vDifference = this.#vDistanceRear - this.#vDistanceFront;
+
+		//here's our technical camera POV position, defined by the front and rear views...
+		//tan x = (rearHeight-frontHeight) / z distance front to rear
+		//This is in radians..
+		//we can use atan2(y,x) ...  x will be our z depth.  y will be our height.
+		this.#hFieldOfViewHalf = Math.atan2(Math.abs(this.#hDifference * 0.5), Math.abs(this.#zDistance));
+		this.#vFieldOfViewHalf = Math.atan2(Math.abs(this.#vDifference * 0.5), Math.abs(this.#zDistance));
+		console.log("FoV h: " + this.#hFieldOfViewHalf + ", v: " + this.#vFieldOfViewHalf);
+
+		this.#hTan = Math.tan(this.#hFieldOfViewHalf);
+		this.#vTan = Math.tan(this.#vFieldOfViewHalf);
+		console.log("TAN h: " + this.#hTan + ", v: " + this.#vTan);
+
+		this.#hTrueCameraDist = (this.#hDistanceFront * 0.5) / Math.tan(this.#hFieldOfViewHalf);
+		this.#vTrueCameraDist = (this.#vDistanceFront * 0.5) / Math.tan(this.#vFieldOfViewHalf);
+		//this is the offset from where the "passed in camera distance" is...  positive means it's more
+		//  toward the screen than passed in camera.  negative means it's farther into the screen.
+		this.#hTrueCameraOffset = this.#hTrueCameraDist + this.#zLocationFront;
+		this.#vTrueCameraOffset = this.#vTrueCameraDist + this.#zLocationFront;
+		//camera offset is where the true z position is in relation to the "camera" z position.
+		//  true camera:  20.  cameraZ is 0.  0 + 20 = +20
+		console.log("DISTANCE from front h: " + this.#hTrueCameraDist + ", v: " + this.#vTrueCameraDist);
+		console.log("OFFSET h: " + this.#hTrueCameraOffset + ", v: " + this.#vTrueCameraOffset);
+
+		//I need to create one for the horizon..
+		//I did this wrong..  I need to take the front and rear horizon height and get the ratio up that is, 
+		//  then get the height in GAME units of that!
+		let tmp_horizon_height_front_ratio = this.#horizonHeightFront / this.#sceneSize.height;
+		let tmp_horizon_height_rear_ratio = this.#horizonHeightRear / this.#sceneSize.height;
+		let tmp_horizon_height_front_game = tmp_horizon_height_front_ratio * this.#vDistanceFront;
+		let tmp_horizon_height_rear_game = tmp_horizon_height_rear_ratio * this.#vDistanceRear;
+		this.#horizonFieldOfViewHalf = Math.atan2(Math.abs(tmp_horizon_height_rear_game - tmp_horizon_height_front_game), Math.abs(this.#zDistance));
+		console.log("horiz rear: " + this.#horizonHeightRear + ", horiz front: " + this.#horizonHeightFront + ", distance: " + this.#zDistance);
+		console.log("horiz rear game: " + tmp_horizon_height_rear_game + ", horiz front game: " + tmp_horizon_height_front_game);
+		console.log("horiz FoV " + this.#horizonFieldOfViewHalf);
+		this.#horizonTan = Math.tan(this.#horizonFieldOfViewHalf);
+		console.log("horizTan: " + this.#horizonTan);
+		//umm....  if front horizon is lower than rear, we calc to the bottom..  if front horizon is higher, we calc to top..
+		if (this.#horizonHeightFront < this.#horizonHeightRear) {
+			//calc to botttom..  
+			//this.#horizonTrueCameraDist = this.#horizonHeightFront / Math.tan(this.#hFieldOfViewHalf);
+			this.#horizonTrueCameraDist = tmp_horizon_height_front_game / Math.tan(this.#hFieldOfViewHalf);
+		}
+		else {
+			//calc to top
+			this.#horizonTrueCameraDist = (this.#sceneSize.height - tmp_horizon_height_front_game) / Math.tan(this.#hFieldOfViewHalf);
+		}
+		this.#horizonTrueCameraOffset = this.#horizonTrueCameraDist + this.#zLocationFront;
+		console.log("horiz point distance: " + this.#horizonTrueCameraDist + ", offset: " + this.#horizonTrueCameraOffset);
+
+		//calc the horizontal distance at distance to begin scaling!   and then we can get scaling ratio.
+		this.#tmp_ratio = 0;
+		if (this.#zDistanceToBeginSizeScaling < this.#zLocationFront) {
+			//we don't scale until scaling distance...
+			this.#tmp_ratio = (this.#zDistanceToBeginSizeScaling - this.#zLocationFront) / (this.#zDistance);
+		}
+		this.#hDistanceWhereBeginScaling = (this.#tmp_ratio * this.#hDifference) + this.#hDistanceFront;
+		this.#zScalingDifference = this.#hDistanceRear - this.#hDistanceWhereBeginScaling;
+		this.#zScalingRatio = this.#hDistanceWhereBeginScaling/this.#hDistanceRear;
+		//now get the scale at REAR..  will be used by any SceneScalers that are stringed along behind this one.
+		//this.#tmp_scale = 1 + ((this.#zScalingRatio - 1) * ((this.#hDistanceRear - this.#hDistanceWhereBeginScaling)/this.#zScalingDifference));
+		this.#scaleSizeAtRear = this.#zScalingRatio * this.#scaleSizeAtFront
+
+		//calc the vertical distance at the horizon..
+		this.#tmp_ratio = this.#zDistanceFrontToH / this.#zDistance;
+		//console.log("HERE!!  " + this.#tmp_ratio + " " + this.#vDifference + " " + this.#vDistanceFront);
+		this.#vDistanceHorizon = (this.#tmp_ratio * this.#vDifference) + this.#vDistanceFront;
+		//console.log("HERE!!  " + in_horizon_height_at_horizon + " " + this.#sceneSize.height + " " + this.#vDistanceHorizon);
+		this.#horizonHeightAtHorizon = (in_horizon_height_at_horizon / this.#sceneSize.height) * this.#vDistanceHorizon;
+		//console.log("hzn height: " + this.#horizonHeightAtHorizon);
+
+		//console.log("hzHeightHz " + this.#horizonHeightAtHorizon + ", hzHeightFr " + this.#horizonHeightFront);
+		this.#horizonHeightDifferenceFrontToRear = this.#horizonHeightRear - this.#horizonHeightFront;
+		this.#horizonHeightDifferenceFrontToHorizon = this.#horizonHeightAtHorizon - this.#horizonHeightFront;
+		this.#horizonHeightDifferenceHorizonToRear = this.#horizonHeightRear - this.#horizonHeightAtHorizon;
+	}
+
+	//Here we are, folks!!  take in the center point of the scene and a location, and it converts that
+	//  location into a scene location/position!
+	calcScenePosition(in_loc, in_center) {
+		//console.log("---------------------");
+
+		//console.log("gameLocation: " + in_loc.x + ", " + in_loc.y + ", " + in_loc.z);
+		//console.log("centLocation: " + in_center.x + ", " + in_center.y + ", " + in_center.z);
+
+		//check if outside clipping zone!
+		//UMM... clipping distance z...  positive number means behind the camera..  toward the viewer.
+		if (in_loc.x < in_center.x - this.#clippingDistance.left ||
+			in_loc.x > in_center.x + this.#clippingDistance.right ||
+			in_loc.z > in_center.z + this.#clippingDistance.front ||
+			in_loc.z < in_center.z + this.#clippingDistance.rear) {
+			//object is outside clipping, we don't need to draw this guy
+			//TODO:  umm... flag something to disable it / remove from DOM?
+			//console.log("  DO NOT CALC OR DRAW THIS GUY!");
+			return;
+		}
+
+		let tmp_x = 0;
+		let tmp_y = 0;
+		let tmp_z = 0;
+
+		//first let's do Z.  this is the ratio, front to back where the location is!
+		//NOTE: #zDistance is NEGATIVE.  But in_loc_z is always smaller than zLocationFront, so we'll get
+		//  a negative number there, too...  neg divided neg equals postive.  which we want.  So we are GOOD!
+		console.log("--------------");
+		console.log("OBJECT LOC: " + in_loc.x + ", " + in_loc.y + ", " + in_loc.z);
+		console.log("z loc front: " + this.#zLocationFront + ", z loc rear: " + this.#zLocationRear + ", zdist: " + this.#zDistance);
+		console.log("front loc: " + (in_center.z + this.#zLocationFront) + ", rear loc: " + (in_center.z + this.#zLocationRear));
+		console.log("trig loc: " + (in_center.z + this.#hTrueCameraOffset));
+		console.log("object distance from trig loc: " + ((in_center.z + this.#hTrueCameraOffset) - in_loc.z));
+		this.#tmp_dist = ((in_center.z + this.#hTrueCameraOffset) - in_loc.z) * this.#hTan * 2;
+		console.log("horizontal width at depth: " + this.#tmp_dist);
+		console.log("h dist at front: " + this.#hDistanceFront + ", h dist at rear: " + this.#hDistanceRear);
+
+		//Here's our X / horizontal location
+		//now we can get the horizontal distance at that z depth..
+		//NOTE:  This doesn't consider where hDistanceWhereBeginScaling is!  TODO FIX THIS BUGGY BUG
+		//now we determine where on the screen their location is..
+		//this.#tmp_edge = in_center.x - (this.#tmp_dist * 0.5);
+		this.#tmp_edge = in_center.x - (this.#tmp_dist * 0.5);
+		console.log("edge loc at distance: " + this.#tmp_edge + ", (center.x is: " + in_center.x + ")");
+		//now we can get the ratio across that distance we're at, and multiply it by our scene size!
+		tmp_x = ((in_loc.x - this.#tmp_edge) / this.#tmp_dist) * this.#sceneSize.width;
+		console.log("calc'd x is: " + tmp_x);
+
+		//Here's our Z...  umm... everything in front of the horizon distance is positive.  everything behind it is
+		//  negative.  Well... we can just make it really simple.  All Z needs us to do is place in front of or 
+		//  behind the things relative to itself.  So no exact ratios are needed.
+		//  object's location MINUS horizon Z.  The. end.
+		//  front: -80.  horizon: -90.  rear:  -120.
+		//  our z:  -110.
+		//  -110 - -90  = -15.  We are behind the horizon.  BAM!
+		//OOPS, gotta consider the camera location.. locationHorizon is a distance from camera!!
+		//  camera is at -30, locHorizon is -60.  -30 + -60 = -90.
+		//  camera is at 10, locHorizon is at -20.  10 + -20 = -10.
+		tmp_z = in_loc.z - (this.#zLocationHorizon + in_center.z);
+
+		//we also need to scale the size..  umm... 50 pixels at the front..  fuck, I gotta write this one down.
+		//It's pretty easy.  the scale(ratio) is front width / rear width.  easy.
+		//50 px wide at front.  200 px wide at back.  the full 50 will be 1/4 the width at back.  50/200 = 1/4.  YUP.
+		//MAYBE??  My brain FELL OUT!!  I understood this stuff yesteday.... today, forget it!!
+		//console.log("SCALE NUMS: scaler " + this.#zScalingRatio + ", hdist " + this.#tmp_dist + ", hdistb " + this.#hDistanceWhereBeginScaling + ", scaledif " + this.#zScalingDifference);
+		//we need to calc the distance of the object FROM THE CAMERA
+		if (this.#tmp_dist <= this.#hDistanceWhereBeginScaling) {
+			//our location is closer than where we scale.. so don't scale!
+			this.#tmp_scale = 1 * this.#scaleSizeAtFront;
+		}
+		else {
+			//I now have the right horizontal sizing...  it's just hWhereBegin / hLoc
+			this.#tmp_scale = this.#hDistanceWhereBeginScaling / this.#tmp_dist;
+			this.#tmp_scale *= this.#scaleSizeAtFront;
+		}
+		//console.log("SCALE IS " + this.#tmp_scale);
+
+		//our horizon height!  Let's get that first.
+		this.#tmp_horizon_height_from_bottom
+		//remember, if horizon front is lower, we work from the bottom..  otherwise we need to calc from top!
+		if (this.#horizonHeightFront < this.#horizonHeightRear) {
+			//calc to botttom..  
+			console.log("calc to bottom!");
+			console.log("horizonTan: " + this.#horizonTan + ", distance from horizonPoint: " + ((in_center.z + this.#horizonTrueCameraOffset) - in_loc.z) );
+			this.#tmp_horizon_height_from_bottom = ((in_center.z + this.#horizonTrueCameraOffset) - in_loc.z) * this.#horizonTan;
+			//tmp_horizon_height_from_bottom = ((in_center.z + this.#zLocationFront) - in_loc.z) * this.#horizonTan + this.#horizonHeightFront;
+		}
+		else {
+			//calc to top
+			this.#tmp_horizon_height_from_bottom = this.#sceneSize.height - (((in_center.z + this.#horizonTrueCameraOffset) - in_loc.z) * this.#horizonTan);
+			//tmp_horizon_height_from_bottom = this.#horizonHeightFront - (((in_center.z + this.#zLocationFront) - in_loc.z) * this.#horizonTan);
+		}
+		console.log("horizon height from bottom: " + this.#tmp_horizon_height_from_bottom + ", horizon height at front: " + this.#horizonHeightFront);
+
+		//here's our vertical height at location
+		this.#tmp_dist = ((in_center.z + this.#vTrueCameraOffset) - in_loc.z) * this.#vTan * 2;
+
+		//we can now convert horizon height from bottom to scene size!
+		//OH YEA!  No need to do this.. just add it to the in_loc.y, since it's already in game height.
+		//let tmp_horizon_scene_height = (tmp_horizon_height_from_bottom / this.#tmp_dist) * this.#sceneSize.height;
+		//console.log("horizon scene height?? " + tmp_horizon_scene_height);
+
+		//console.log("VERTICAL height at distance: " + this.#tmp_dist + ", vert height at front: " + this.#vDistanceFront);
+		//umm... now get the screen size pixels per distance...
+		let tmp_height_per_Y = this.#sceneSize.height / this.#tmp_dist;
+		//now multiply by our Y value and add horizon height????
+		//tmp_y = (in_loc.y * tmp_height_per_Y) + tmp_horizon_scene_height;
+		tmp_y = ((in_loc.y + this.#tmp_horizon_height_from_bottom) * tmp_height_per_Y);
+
+		/*
+		//Here's our Y / vertical location... This one is a bit more complicated than X??  As we get farther back toward
+		//  the horizon, we need to adjust for that..  Can I just use front/rear vDistance dumbly?
+		//So for horizontal, we know where our center is, and we can calc the left edge easy.
+		//For vertical, we need to calc based on the horizon!
+		//tmp_ratio is still good!
+		//OH shit, I forgot I need to do this for front or back of the horizon!!)
+		//we do front first, because that's what I calculated first.
+		//if ((in_loc.z - in_center.z) >= this.zLocationHorizon) {
+		let tmp_loc_ratio_2 = 0;
+		if (tmp_z >= 0) {
+			console.log("IN FRONT OF HORIZON");
+			console.log("in z: " + in_loc.z + ", zFront: " + this.#zLocationFront + ", ftoH: " + this.#zDistanceFrontToH);
+			//we need to get the vertical distance at this z depth.
+			//get this guy FIRST, because tmp_ratio is already set front to back!
+			this.#tmp_dist = (this.#tmp_ratio * this.#vDifference) + this.#vDistanceFront;
+			console.log("vertical view height at depth " + this.#tmp_dist + ", vDiff: " + this.#vDifference + ", vDist at front: " + this.#vDistanceFront);
+			if (this.#zDistanceFrontToH > this.#zDistance) {
+				//console.log("calc to horizon!");
+			//console.log("in z: " + in_loc.z + ", zFront: " + this.#zLocationFront + ", ftoH: " + this.#zDistanceFrontToH + ", ftoR: " + this.#zDistance);
+			//console.log("vertical view height at depth " + this.#tmp_dist);
+				//we need to calc to horizon!  That's the rise we want to use.
+				//now we overwrite tmp_ratio to get ratio from front to HORIZON
+				this.#tmp_ratio = (in_loc.z - (in_center.z + this.#zLocationFront)) / this.#zDistanceFrontToH;
+				//console.log("z ratio " + this.#tmp_ratio);
+				//console.log("hz height dif FtoH " + this.#horizonHeightDifferenceFrontToHorizon);
+				//console.log("hzHeightFront " + this.#horizonHeightFront);
+				this.#tmp_bottom_height_from_horizon = (this.#tmp_ratio * this.#horizonHeightDifferenceFrontToHorizon) + this.#horizonHeightFront;
+				//console.log("hz height " + this.#tmp_bottom_height_from_horizon);
+			}
+			else {
+				console.log("calc to rear!");
+			//console.log("in z: " + in_loc.z + ", zFront: " + this.#zLocationFront + ", ftoH: " + this.#zDistanceFrontToH + ", ftoR: " + this.#zDistance);
+			//console.log("vertical view height at depth " + this.#tmp_dist);
+				//calc to rear.  We won't be rising as much!
+				//now we overwrite tmp_ratio to get ratio from front to REAR
+				//OH.. this is already the ratio......
+				//this.#tmp_ratio = (in_loc.z - (in_center.z + this.#zLocationFront)) / this.#zDistance;
+				//this.#tmp_ratio = (in_loc.z - this.#zLocationFront) / this.#zDistance;
+				//console.log("z ratio " + this.#tmp_ratio);
+				//console.log("hz height dif FtoR " + this.#horizonHeightDifferenceFrontToRear);
+				//console.log("hzHeightFront " + this.#horizonHeightFront);
+				//OK... I need to incorporate the Y distance into this some how...  as we get farther into the distance, Y space
+				//  shrinks!
+				//  horizon height at front:  100
+				//                    rear:   200
+				//  vertical front:  25 x .75  = 18 ish..
+				//  vertical rear:   100x .75  = 75
+				//  100 / 900 (screen height) = 1/9
+				//  300 / 900                 = 1/3
+				//  200 / 900                 = 2/9 height difference...
+				//  front:  zero is at 1/9..  (1-1/9) * 18 = 16 in (8/9)*screenheight.  800/16 = 50
+				//  rear:   zero is at 1/3..  (1-1/3) * 75 = 50 in (2/3)*screenheight.  600/50 = 12
+				let tmp_front_ratio = this.#sceneSize.height / this.#vDistanceFront;
+				let tmp_loc_ratio = this.#sceneSize.height / this.#tmp_dist;
+				let tmp_rear_ratio = this.#sceneSize.height / this.#vDistanceRear;
+				console.log("v_pixels_per_dist front: " + tmp_front_ratio + ", rear: " + tmp_rear_ratio);
+				//50 -> 12    (50-12)*(1-zratio) + 12
+				tmp_loc_ratio_2 = (tmp_front_ratio - tmp_rear_ratio) * (1 - this.#tmp_ratio) + tmp_rear_ratio;
+				console.log("v_pixels_per_dist: " + tmp_loc_ratio + ", -or- " + tmp_loc_ratio_2);
+				//  oh yea.  vertical distance at depth..  18..  900/18 = 50.  50 height per in game y location.
+				//  horizon height ratio difference...????  50 front.  12 back.  50/12 = 4.16 ...  12/50 = .24
+				//  the tmp_ratio is really ...  (1 - (1/3-1/9) * tmp_z_ratio + 1/9) * verticalHeight.
+				this.#tmp_bottom_height_from_horizon = (this.#tmp_ratio * this.#horizonHeightDifferenceFrontToRear) + this.#horizonHeightFront;
+				console.log("hz height " + this.#tmp_bottom_height_from_horizon);
+
+			}
+			//now we can get the ratio how high up we are from the bottom and multiply by scene height!
+			//tmp_y = ((in_loc.y + this.#tmp_bottom_height_from_horizon) / this.#tmp_dist) * this.#sceneSize.height;
+			tmp_y = (in_loc.y / this.#tmp_dist) * this.#sceneSize.height + this.#tmp_bottom_height_from_horizon;
+			//tmp_y = (in_loc.y * tmp_loc_ratio_2) + this.#tmp_bottom_height_from_horizon;
+			console.log("y loc " + tmp_y);
+		}
+		else {
+			//console.log("BEHIND HORIZON");
+			//okayyy!  Doing the same thing, essentially, just from horizon to rear, so the horizon goes dooown instead of up.
+			//we need to get the vertical distance at this z depth.
+			this.#tmp_dist = (this.#tmp_ratio * this.#vDifference) + this.#vDistanceFront;
+			//console.log("ver height at depth " + this.#tmp_dist);
+			if (this.#zDistanceHToRear > this.zDistance) {
+				//we need to calc from horizon to rear!
+				this.#tmp_ratio = (in_loc.z - (in_center.z + this.#zLocationHorizon)) / this.#zDistanceHToRear;
+				//console.log("ratio " + this.#tmp_ratio);
+				//console.log("bleh " + this.#horizonHeightDifferenceHorizonToRear);
+				//console.log("hzHeightFront " + this.#horizonHeightAtHorizon);
+				this.#tmp_bottom_height_from_horizon = (this.#tmp_ratio * this.#horizonHeightDifferenceHorizonToRear) + this.#horizonHeightAtHorizon;
+				//console.log("hz height " + this.#tmp_bottom_height_from_horizon);
+			}
+			else {
+				//we need to calc from front to rear!  front is farther back than horizoN!
+				this.#tmp_ratio = (in_loc.z - (in_center.z + this.#zLocationFront)) / this.#zDistance;
+				//console.log("ratio " + this.#tmp_ratio);
+				//console.log("bleh " + this.#horizonHeightDifferenceHorizonToRear);
+				//console.log("hzHeightFront " + this.#horizonHeightAtHorizon);
+				this.#tmp_bottom_height_from_horizon = (this.#tmp_ratio * this.#horizonHeightDifferenceFrontToRear) + this.#horizonHeightFront;
+				//console.log("hz height " + this.#tmp_bottom_height_from_horizon);
+			}
+			//now we can get the ratio how high up we are from the bottom and multiply by scene height!
+			//tmp_y = ((in_loc.y + this.#tmp_bottom_height_from_horizon) / this.#tmp_dist) * this.#sceneSize.height;
+			tmp_y = (in_loc.y / this.#tmp_dist) * this.#sceneSize.height + this.#tmp_bottom_height_from_horizon;
+		}
+		//tmp_y = 50;
+		*/
 		//console.log("scenLocation: " + tmp_x + ", " + tmp_y + ", " + tmp_z);    
 
 		//OK.. our horizontal position..  We need to know how close we are to the front vs the back.  Use that ratio
@@ -3438,7 +3948,7 @@ function pastureLayerBuild(in_window) {
 	//TODO: above scaler:  +20 for front boundary doesn't cut off other cows... soo...  need to either remove them on clip, or
 	//  change the boundary...  what do I do about a giant tree??  That's what I want to know..
 	tmp_layer.addSceneScaler(tmp_scaler);
-	tmp_scaler = new SceneScaler(tmp_scaler.hDistanceRear, tmp_scaler.vDistanceRear,
+	tmp_scaler = new SceneScalerTrig(tmp_scaler.hDistanceRear, tmp_scaler.vDistanceRear,
 																		100, 100 * (9/12),
 																		tmp_scaler.zDistanceFromCameraRear, -63, tmp_scaler.zDistanceFromCameraHorizon,
 																		tmp_scaler.horizonHeightRear, tmp_layer.horizonHeight, tmp_layer.horizonHeight,
@@ -3467,7 +3977,7 @@ function pastureLayerBuild(in_window) {
 	tmp_layer.addStaticObjectToHorizon(tmp_obj, SceneLayer.TOP, -1);
 
 	//le moo!
-	for (let i=0; i<5; i++) {
+	for (let i=0; i<0; i++) {
 		tmp_obj = new GameObject();
 		tmp_obj.locationPoint = GameObject.LOC_BC;
 		let tmp_file = FileLoader.Instance().getFile("assets/cow.png");
@@ -3485,6 +3995,7 @@ function pastureLayerBuild(in_window) {
 	*/
 	}
 	for (let i=0; i<21; i++) {
+		/*
 		if (i % 4 == 2) {
 			continue;
 		}
@@ -3497,6 +4008,7 @@ function pastureLayerBuild(in_window) {
 		tmp_obj.location = new Location(0 + (5*i), 0, -80);
 		tmp_layer.addObject(tmp_obj);
 		Game.Instance().addObject(tmp_obj);
+		*/
 		/*
 		if (i == 0) {
 				in_window.camera = new Camera(tmp_obj, new Location(0, 0, 25));
@@ -3511,7 +4023,7 @@ function pastureLayerBuild(in_window) {
 	tmp_obj.setImage("assets/cow.png", tmp_file);
 	//let tmp_x = Math.random() * (in_window.windowElement.clientWidth - (tmp_file.naturalWidth * 1.2)) + (tmp_file.naturalWidth * 0.6);
 	//let tmp_y = Math.random() * (tmp_layer.horizonHeight - (tmp_file.naturalHeight * 0.4)) + (tmp_file.naturalHeight * 0.2);
-	tmp_obj.location = new Location(40, 0, -58);
+	tmp_obj.location = new Location(40, 0, -28);
 	tmp_layer.addObject(tmp_obj);
 	Game.Instance().addObject(tmp_obj);
 	//ohhh.... something's messsssssed upppppp.  Cows be everywhere when this is close to the cow.  (since this is the far cow)
@@ -3522,43 +4034,8 @@ function pastureLayerBuild(in_window) {
 	Game.Instance().addObject(in_window.camera);
 
 
-	//let's put some grass down.
-	let tmp_grass_s = 20;
-	let tmp_grass_l = 2;
-
-	const tmp_h_min = 20;
-	const tmp_h_max = 60;
-	const tmp_z_min = -40;
-	const tmp_z_max = 10;
-	const tmp_h_dif = tmp_h_max - tmp_h_min;
-	const tmp_z_dif = tmp_z_max - tmp_z_min;
-
 /*
-	let tmp_rand;
-	let tmp_file_name;
-	let i = 0;
-	for (i=0; i<tmp_grass_s; i++) {
-		//make a small grass!
-		tmp_obj = new GameObject();
-		tmp_obj.locationPoint = GameObject.LOC_BC;
-		tmp_rand = Math.floor(Math.random() * GRASS_S_OPTIONS) + 1;
-		tmp_file_name = GRASS_S_NAME + (tmp_rand < 10? "0" : "") + tmp_rand + "." + IMG_TYPE;
-		tmp_obj.setImage(tmp_file_name, FileLoader.Instance().getFile(tmp_file_name));
-		tmp_obj.location = new Location(Math.round(Math.random() * tmp_h_dif + tmp_h_min), 0, Math.round(Math.random() * tmp_z_dif + tmp_z_min));
-		tmp_layer.addObject(tmp_obj);
-	}
-
-	//let's make ONE grass to test this...
-		tmp_obj = new GameObject();
-		tmp_obj.locationPoint = GameObject.LOC_BC;
-		tmp_rand = 1;
-		tmp_file_name = GRASS_S_NAME + (tmp_rand < 10? "0" : "") + tmp_rand + "." + IMG_TYPE;
-		tmp_obj.setImage(tmp_file_name, FileLoader.Instance().getFile(tmp_file_name));
-		tmp_obj.location = new Location(35, 0, -10.8);
-		tmp_layer.addObject(tmp_obj);
-*/
-
-
+	//let's put some grass down.
 	let tmp_boundary = new Boundary(20, 50, 0, -50);
 	//let tmp_boundary = new Boundary(0, 100, 20, -120);
 	let tmp_grass = Grass.factory(tmp_boundary, 10, 120, -1);
@@ -3566,7 +4043,7 @@ function pastureLayerBuild(in_window) {
 		tmp_layer.addObject(vv_object);
 		Game.Instance().addObject(vv_object);
 	});
-
+*/
 	return tmp_layer;
 }
 
@@ -3608,6 +4085,29 @@ function DayEndOverlayBuild(in_window) {
 	tmp_layer.addStaticObject(tmp_obj);
 
 	return tmp_layer;
+}
+
+function buildTestGrid(in_layer) {
+	let tmp_rand;
+	let tmp_file_name;
+	let i = 0;
+	for (i=0; i<28; i++) {
+		for (let j = 0; j < 1; j++) {
+			tmp_obj = new GameObject();
+			tmp_obj.locationPoint = GameObject.LOC_BC;
+			tmp_file_name = "assets/25x25_circle.png";
+			tmp_obj.setImage(tmp_file_name, FileLoader.Instance().getFile(tmp_file_name));
+			if (i < 37) {
+				tmp_obj.location = new Location(27.5 + (j*5), 0, -36 - (i*1));
+				//tmp_obj.location = new Location(27.5 + (j*5), 0, -20 - (i*4));
+			}
+			else {
+				tmp_obj.location = new Location(27.5 + (j*5), 0, -24 - (i*3));
+			}
+			in_layer.addObject(tmp_obj);
+		}
+	}
+
 }
 
 //ummm..... GameWindow is where our game happens...  externally, I'm telling the gamewindow what z-index each thing 
@@ -3684,6 +4184,8 @@ FileLoader.Instance().okToContinue = true;
 console.log("ready ready");
 */
 
+PreloadHandler.Instance().addFile("assets/25x25_circle.png");
+PreloadHandler.Instance().addFile("assets/50x50_circle.png");
 PreloadHandler.Instance().addFile("assets/canvas_36tpi_2x2_288.png");
 PreloadHandler.Instance().addFile("assets/canvas_edge_v_light.png");
 PreloadHandler.Instance().addFile("assets/canvas_edge_h_light.png");
@@ -3737,6 +4239,7 @@ function imagesLoaded() {
 	let tmp_hill_scene = hillLayerBuild(gameWindow);
 	let tmp_farfield_scene = farFieldLayerBuild(gameWindow);
 	let tmp_pasture_scene = pastureLayerBuild(gameWindow);
+	buildTestGrid(tmp_pasture_scene);
 	//console.log("picked hills:");
 	//tmp_hills.forEach(vv_img => console.log(vv_img));
 	//tmp_sky_scene.update();
