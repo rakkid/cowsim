@@ -2208,10 +2208,24 @@ class SceneScalerTrig {
 		return false;
 	}
 
+	//this takes in the distance to horizon, the height of horizon, the height at zero, and a distance
+	//  in between.  It returns the height at that distance!
+	static calcHorizonHeight(in_horizon_distance, in_horizon_height, in_zero_height, in_calc_height_at_distance) {
+		//first get our ratio from front to back, that we need to calc at.
+		//far distance is -60.  our distance is -40.  40/60 = .67    ..  then .67 * (horizon_height - zero_height)
+		//WHAT IF horizon is lower than zero??  (for when we are calc'ing beyond-horizon numbers)
+		//  umm...  60..  0.   .66  becomes 20..
+		let tmp_ratio = in_calc_height_at_distance / in_horizon_distance;
+		let tmp_result = tmp_ratio * (in_horizon_height - in_zero_height) + in_zero_height;
+		//if tmp_result is negative..  for example, -40, this still works..  we'd get -40 + 60 = -20. yup!
+		return tmp_result;
+	}
+
 	//SceneScaler.calcHorizonHeight(-63, tmp_layer.horizonHeight, 0, -36)
 	//this takes in the distance to horizon, the height of horizon, the height at zero, and a distance
 	//  in between.  It returns the height at that distance!
-	static calcHorizonHeight(in_horizon_distance, 
+	//I don't think I actually need the complicated stuff for this one... I don't know..
+	static calcHorizonHeightDoesNotWork(in_horizon_distance, 
 							in_horizon_height, 
 							in_zero_height, 
 							in_calc_height_at_distance, 
