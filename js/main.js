@@ -986,12 +986,89 @@ class InputHandler {
 
 
 //class for animated actions of objects?  I dunoo.....
+//Soo... for animations.... do I have them do their own timeout?  Or do I tie them to the game loop?
+//  I'll have to think how I want to organize them, I guess.
 class Animation {
 	#name;
 	#numFrames;
 	#frameImgs;
 	#timeLength;
 	#frameTimes;  //ratio of how long each frame lasts over the whole length...
+
+	#element;
+
+	#timeSinceLastFrame;
+	#timeTilNextFrame;
+	#currentFrame;
+
+	constructor(in_name, in_frames_list, in_anim_length_millis, in_img_element, in_frame_times) {
+		if (in_frames_list.length < 2) {
+			throw "What is an animation with 1 frame??  Not an animation, that's for sure!";
+		}
+		this.#name = in_name;
+		this.#numFrames = in_frames_list.length;
+		this.#frameImgs = in_frames_list;
+		this.#timeLength = in_anim_length_millis;
+		this.#frameTimes = in_frame_times;
+		this.#element = in_img_element;
+
+		this.#timeSinceLastFrame = 0;
+		this.#timeTilNextFrame = 0;
+		this.#currentFrame = 0;
+
+		//calc frame times...
+		this.#frameTimes = [];
+		if (in_frame_times) {
+			//ummm.. if in_frame_times doesn't add up to 1, we have a problem...
+			if (in_frame_times.reduce((vv_sum, vv_time) => sum + time, 0) != 1) {
+				throw "Animation frame times is provided, and the sum is not 1!!  This should add to 1, if used."
+			}
+			//there are specific time ratios to use.
+			for (let i=0; i<this.#numFrames; i++) {
+				this.#frameTimes[i] = this.#timeLength * in_frame_times[i];
+			}
+		}
+		else {
+			//no specific time ratios to use..  calc average..
+			//anim_length / numFrames.  easy.
+			let tmp_time = this.#timeLength / this.#numFrames;
+			for (let i=0; i<this.#numFrames; i++) {
+				this.#frameTimes[i] = tmp_time;
+			}
+		}
+
+	}
+
+	//begin?? start with frame 1???
+	begin() {
+		//let's dooo this!?
+		this.#element.src = this.#frameImgs[this.#currentFrame];
+		this.#timeSinceLastFrame = 0;
+		//grab time that THIS frame exists for.  That's how long until the next one!
+		this.#timeTilNextFrame = this.#frameTimes[this.#currentFrame];
+	}
+
+	//aaand... update.
+	update() {
+		//pretty much check if we need to update the image...
+		this.#timeSinceLastFrame += Game.Instance().timer.timeElapsed;
+
+		//is it time to update our image??
+		if (this.#timeSinceLastFrame >= this.#timeTilNextFrame) {
+			//yup!
+			//we gotta go up to the next frame!
+			this.#currentFrame += 1;
+			if (this.#currentFrame == this.#numFrames) {
+				this.#currentFrame = 0;
+			}
+			this.#element.src = this.#frameImgs[this.#currentFrame];
+			//now add in our "overtime" for this frame..
+			this.#timeSinceLastFrame = this.#timeSinceLastFrame - this.#timeTilNextFrame;
+			//grab time that THIS frame exists for.  That's how long until the next one!
+			this.#timeTilNextFrame = this.#frameTimes[this.#currentFrame];
+		}
+		//else nope... we just do nothing, I guess...
+	}
 }
 
 class Location {
@@ -3116,6 +3193,27 @@ class Boundary {
 }
 
 //---===---===---===---===---
+//  Animations...  how do I want to do this..?
+//---===---===---===---===---
+//SO.  for animations.  I have animation class, but I'm gonna have multiple cows doing the same animations, 
+//  so I kinda want to be able to keep saying "give me that one!"  "give me that one!"  So I guess I create
+//  a bunch of sub classes?
+//	constructor(in_name, in_frames_list, in_anim_length_millis, in_img_element, in_frame_times)
+class AnimCowStep extends Animation {
+	static animList = ["assets/cow_step_1.png",
+						"assets/cow_step_2.png",
+						"assets/cow_step_3.png",
+						"assets/cow.png"];
+	constructor(in_img_element) {
+		super("cow_step", 
+			  AnimCowStep.animList, 
+			  1000,
+			  in_img_element);
+	}
+}
+
+
+//---===---===---===---===---
 //  Game Objects!  ....?
 //---===---===---===---===---
 
@@ -3309,6 +3407,8 @@ class ControllableCow extends GameObject {
 	#boundary;
 	#movementSpeed = 6;
 
+	#currentAnim;
+
 	constructor() {
 		//we can probably pick the cow image here..  some kind of cow builder for all cows.
 		super();
@@ -3339,6 +3439,12 @@ class ControllableCow extends GameObject {
 			//now make sure we haven't gone past an edge..
 			if (this.#boundary && tmp_x < this.#boundary.left) {
 				tmp_x = this.#boundary.left;
+			}
+			//aaand new animatioN!!
+			//if there was an old animation, we need to delete it!  TODO
+			if (!this.#currentAnim) {
+				this.#currentAnim = new AnimCowStep(this.element);
+				Game.Instance().addObject(this.#currentAnim);
 			}
 		}
 		if (InputHandler.Instance().checkIsDown("ArrowRight")) {
@@ -3844,6 +3950,10 @@ function pastureLayerPreBuild() {
 */
 	//OMG!!  ADD THE COW DUH!!!!
 	pastureList.push("assets/cow.png");
+	//moomoomations??
+	pastureList.push("assets/cow_step_1.png");
+	pastureList.push("assets/cow_step_2.png");
+	pastureList.push("assets/cow_step_3.png");
 }
 function pastureLayerBuild(in_window) {
 	const heightRatio = 1;
@@ -4045,7 +4155,7 @@ function buildTestGrid(in_layer) {
 	let tmp_file_name;
 	let i = 0;
 	for (i=0; i<28; i++) {
-		for (let j = 0; j < 8; j++) {
+		for (let j = 0; j < 1; j++) {
 			tmp_obj = new GameObject();
 			tmp_obj.locationPoint = GameObject.LOC_BC;
 			tmp_file_name = "assets/25x25_circle.png";
